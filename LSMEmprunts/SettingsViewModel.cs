@@ -256,12 +256,7 @@ namespace LSMEmprunts
                     var gearProxy = Gears.FirstOrDefault(e => e.Id == gearHistory.Key);
                     if (gearProxy != null)
                     {
-                        gearProxy.StatsBorrowsCount = gearHistory.Count();
-                        gearProxy.StatsBorrowsDuration = gearHistory.Aggregate(TimeSpan.Zero, (totalDuration, borrowing) =>
-                        {
-                            var borrowDuration = (borrowing.ReturnTime ?? now) - borrowing.BorrowTime;
-                            return totalDuration + borrowDuration;
-                        });
+                        gearProxy.UpdateStats(gearHistory, now);
                     }
                 }
 
@@ -270,7 +265,7 @@ namespace LSMEmprunts
                     var userProxy = Users.FirstOrDefault(e=>e.Id == userHistory.Key);
                     if (userProxy != null) 
                     {
-                        userProxy.StatsBorrowsCount = userHistory.Count();
+                        userProxy.UpdateStats(userHistory, now);
                     }
                 }
             }

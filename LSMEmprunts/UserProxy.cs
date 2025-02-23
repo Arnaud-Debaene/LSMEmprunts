@@ -1,4 +1,5 @@
 ﻿using LSMEmprunts.Data;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -74,7 +75,12 @@ namespace LSMEmprunts
         public int StatsBorrowsCount
         {
             get => _StatsBorrowsCount;
-            set => SetProperty(ref _StatsBorrowsCount, value);
+            private set => SetProperty(ref _StatsBorrowsCount, value);
+        }
+
+        internal void UpdateStats(IEnumerable<Borrowing> history, DateTime now)
+        {
+            StatsBorrowsCount = history.Count();
         }
     }
 }

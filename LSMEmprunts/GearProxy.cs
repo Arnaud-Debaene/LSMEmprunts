@@ -85,14 +85,24 @@ namespace LSMEmprunts
         public TimeSpan StatsBorrowsDuration
         {
             get => _StatsBorrowsDuration;
-            internal set => SetProperty(ref _StatsBorrowsDuration, value);
+            private set => SetProperty(ref _StatsBorrowsDuration, value);
         }
 
         private int _StatsBorrowsCount;
         public int StatsBorrowsCount
         {
             get => _StatsBorrowsCount;
-            set => SetProperty(ref _StatsBorrowsCount , value);
+            private set => SetProperty(ref _StatsBorrowsCount , value);
+        }
+
+        internal void UpdateStats(IEnumerable<Borrowing> history, DateTime now)
+        {
+            StatsBorrowsCount = history.Count();
+            StatsBorrowsDuration = history.Aggregate(TimeSpan.Zero, (totalDuration, borrowing) =>
+            {
+                var borrowDuration = (borrowing.ReturnTime ?? now) - borrowing.BorrowTime;
+                return totalDuration + borrowDuration;
+            });
         }
 
         public static string[] AllowedTankSizes { get; } = 
