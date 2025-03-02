@@ -10,8 +10,6 @@ namespace LSMEmprunts.Data
 
         public string Name { get; set; }
 
-        public string LicenceScanId { get; set; }
-
         public string Phone { get; set; }
 
         public ICollection<Borrowing> Borrowings { get; set; }
@@ -24,10 +22,8 @@ namespace LSMEmprunts.Data
         {
             builder.HasKey(e => e.Id);
             builder.Property(e => e.Name).IsRequired();
-            builder.Property(e => e.LicenceScanId).IsRequired();
 
             builder.HasIndex(e => e.Name).IsUnique();
-            builder.HasIndex(e => e.LicenceScanId).IsUnique();
         }
     }
 }

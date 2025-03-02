@@ -27,7 +27,7 @@ namespace LSMEmprunts.Data
         public Context CreateDbContext(string[] args)
         {
             var optionsBuilder = new DbContextOptionsBuilder<Context>();
-            optionsBuilder.UseSqlite("Data Source=DesignTime.db");
+            optionsBuilder.UseNpgsql();
 
             return new Context(optionsBuilder.Options);
         }

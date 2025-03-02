@@ -1,11 +1,12 @@
-﻿using LSMEmprunts.Data;
+﻿using FluentValidation;
+using LSMEmprunts.Data;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace LSMEmprunts
 {
-    public class GearProxy : ProxyBase<Gear>
+    public class GearProxy : ProxyBase<Gear, GearProxy>
     {
         private readonly IEnumerable<GearProxy> _Collection;
 
@@ -13,8 +14,7 @@ namespace LSMEmprunts
             : base(data)
         {
             _Collection = collection;
-            EvaluateNameValidity();
-            EvaluateBarCodeValidity();
+            ValidateAllProperties();
         }
 
         public int Id => WrappedElt.Id;
@@ -25,20 +25,6 @@ namespace LSMEmprunts
             set
             {
                 SetProperty(e => e.Name, value);
-                EvaluateNameValidity();
-            }
-        }
-
-        private void EvaluateNameValidity()
-        {
-            ClearErrors(nameof(Name));
-            if (string.IsNullOrEmpty(Name))
-            {
-                AddError(nameof(Name), "Nom requis");
-            }
-            if (_Collection.Any(e => e != this && e.Name == Name && e.Type == Type))
-            {
-                AddError(nameof(Name), "Le nom doit être unique pour un type d'équipement");
             }
         }
 
@@ -54,31 +40,13 @@ namespace LSMEmprunts
             set
             {
                 SetProperty(e => e.BarCode, value);
-                EvaluateBarCodeValidity();
-            }
-        }
-
-        private void EvaluateBarCodeValidity()
-        {
-            ClearErrors(nameof(BarCode));
-            if (string.IsNullOrEmpty(BarCode))
-            {
-                AddError(nameof(BarCode), "Code barre requis");
-            }
-            if (_Collection.Any(e => e != this && e.BarCode == BarCode))
-            {
-                AddError(nameof(BarCode), "le code barre doit être unique");
             }
         }
 
         public string Size
         {
             get => WrappedElt.Size;
-            set
-            {
-                SetProperty(e=>e.Size, value);
-                EvaluateSizeValidity();
-            }
+            set => SetProperty(e => e.Size, value);
         }
 
         private TimeSpan _StatsBorrowsDuration;
@@ -115,28 +83,24 @@ namespace LSMEmprunts
             string.Empty, "Enfant", "XXS", "XS", "S", "M", "L", "XL", "XXL"
         };
 
-        private void EvaluateSizeValidity()
+        private class MyValidator : AbstractValidator<GearProxy>
         {
-            ClearErrors(nameof(Size));
-            if (string.IsNullOrEmpty(Size))
+            private MyValidator()
             {
-                return;
+                RuleFor(e => e.Name).NotEmpty().WithMessage("Nom requis");
+                RuleFor(e => e.Name).ItemUnique(gear=>gear._Collection, (gear1, gear2) => gear1.Name == gear2.Name && gear1.Type == gear2.Type).WithMessage("Le nom doit être unique pour un type d'équipement");
+
+                RuleFor(e => e.BarCode).NotEmpty().WithMessage("Code barre requis");
+                RuleFor(e => e.BarCode).ItemUnique(gear => gear._Collection).WithMessage("le code barre doit être unique");
+
+                RuleFor(e=>e.Size).Must(size => string.IsNullOrEmpty(size) || AllowedTankSizes.Contains(size)).When(gear=>gear.Type == GearType.Tank).WithMessage("taille de bloc invalide");
+                RuleFor(e => e.Size).Must(size => string.IsNullOrEmpty(size) || AllowedBCDSizes.Contains(size)).When(gear => gear.Type == GearType.BCD).WithMessage("taille de bloc invalide");
+
             }
-            switch(Type)
-            {
-                case GearType.Tank:
-                    if (!AllowedTankSizes.Contains(Size))
-                    {
-                        AddError(nameof(Size), "taille de bloc invalide");
-                    }
-                    break;
-                case GearType.BCD:
-                    if (!AllowedBCDSizes.Contains(Size))
-                    {
-                        AddError(nameof(Size), "taille de stab invalide");
-                    }
-                    break;
-            }
+
+            public static MyValidator Instance { get; } = new();
         }
+
+        protected override IValidator<GearProxy> Validator => MyValidator.Instance;
     }
 }

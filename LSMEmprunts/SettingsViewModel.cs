@@ -160,10 +160,10 @@ namespace LSMEmprunts
             if (await vm.Completion)
             {
                 using var writer = new StreamWriter(vm.FileName, false, Encoding.UTF8);
-                writer.WriteLine("Nom;Licence;Téléphone;#Emprunts");
+                writer.WriteLine("Nom;Téléphone;#Emprunts");
                 foreach (var user in Users)
                 {
-                    writer.WriteLine($"{user.Name};{user.LicenceScanId};{user.Phone};{user.StatsBorrowsCount}");
+                    writer.WriteLine($"{user.Name};{user.Phone};{user.StatsBorrowsCount}");
                 }
             }
         }

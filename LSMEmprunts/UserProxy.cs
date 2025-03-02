@@ -1,11 +1,12 @@
-﻿using LSMEmprunts.Data;
+﻿using FluentValidation;
+using LSMEmprunts.Data;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace LSMEmprunts
 {
-    public class UserProxy : ProxyBase<User>
+    public class UserProxy : ProxyBase<User, UserProxy>
     {
         private readonly IEnumerable<UserProxy> _Collection;
 
@@ -13,8 +14,7 @@ namespace LSMEmprunts
             : base(data)
         {
             _Collection = collection;
-            EvaluateNameValidity();
-            EvaluateLicenceScanIdValidity();
+            ValidateAllProperties();
         }
 
         public int Id => WrappedElt.Id;
@@ -25,43 +25,6 @@ namespace LSMEmprunts
             set
             {                
                 SetProperty(e => e.Name, value);
-                EvaluateNameValidity();
-            }
-        }
-
-        private void EvaluateNameValidity()
-        {
-            ClearErrors(nameof(Name));
-            if (string.IsNullOrEmpty(Name))
-            {
-                AddError(nameof(Name), "Nom requis");
-            }
-            else if (_Collection.Any(e => e != this && e.Name == Name))
-            {
-                AddError(nameof(Name), "le nom doit être unique");
-            }
-        }
-
-        public string LicenceScanId
-        {
-            get => WrappedElt.LicenceScanId;
-            set
-            {
-                SetProperty(e => e.LicenceScanId, value);
-                EvaluateLicenceScanIdValidity();
-            }
-        }
-
-        private void EvaluateLicenceScanIdValidity()
-        {
-            ClearErrors(nameof(LicenceScanId));
-            if (string.IsNullOrEmpty(LicenceScanId))
-            {
-                AddError(nameof(LicenceScanId), "Code barre Licence requis");
-            }
-            else if (_Collection.Any(e => e != this && e.LicenceScanId == LicenceScanId))
-            {
-                AddError(nameof(LicenceScanId), "le code licence doit être unique");
             }
         }
 
@@ -82,5 +45,18 @@ namespace LSMEmprunts
         {
             StatsBorrowsCount = history.Count();
         }
+
+        private class MyValidator : AbstractValidator<UserProxy>
+        {
+            private MyValidator() 
+            {
+                RuleFor(e=>e.Name).NotEmpty().WithMessage("Nom requis");
+                RuleFor(e=>e.Name).ItemUnique(user=>user._Collection).WithMessage("le nom doit être unique");
+            }
+
+            public static MyValidator Instance { get; } = new MyValidator();
+        }
+
+        protected override IValidator<UserProxy> Validator => MyValidator.Instance;
     }
 }

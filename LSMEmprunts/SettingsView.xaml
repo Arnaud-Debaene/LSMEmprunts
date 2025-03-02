@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
              xmlns:local="clr-namespace:LSMEmprunts"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:SettingsViewModel}"
              d:DesignHeight="600" d:DesignWidth="600">
@@ -22,12 +23,12 @@
         <local:GearSizeTemplateSelector x:Key="SizeTemplateSelector">
             <local:GearSizeTemplateSelector.TankSizeTemplate>
                 <DataTemplate DataType="local:GearProxy">
-                    <ComboBox SelectedItem="{Binding Size, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{x:Static local:GearProxy.AllowedTankSizes}" />
+                    <ComboBox SelectedItem="{Binding Size, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=true}" ItemsSource="{x:Static local:GearProxy.AllowedTankSizes}" />
                 </DataTemplate>
             </local:GearSizeTemplateSelector.TankSizeTemplate>
             <local:GearSizeTemplateSelector.BCDSizeTemplate>
                 <DataTemplate DataType="local:GearProxy">
-                    <ComboBox SelectedItem="{Binding Size, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{x:Static local:GearProxy.AllowedBCDSizes}" />
+                    <ComboBox SelectedItem="{Binding Size, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=true}" ItemsSource="{x:Static local:GearProxy.AllowedBCDSizes}" />
                 </DataTemplate>
             </local:GearSizeTemplateSelector.BCDSizeTemplate>
             <local:GearSizeTemplateSelector.EmptyTemplate>
@@ -76,10 +77,8 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
                     <DataGridTextColumn Header="Nom" EditingElementStyle="{StaticResource ErrorStyle}"
-                                        Binding="{Binding Name, ValidatesOnExceptions=True, ValidatesOnNotifyDataErrors=True, NotifyOnValidationError=True}" />
-                    <DataGridTextColumn Header="LicenceId" EditingElementStyle="{StaticResource ErrorStyle}"
-                                        Binding="{Binding LicenceScanId, ValidatesOnExceptions=True,ValidatesOnNotifyDataErrors=True, NotifyOnValidationError=True}" />
-                    <DataGridTextColumn Header="Téléphone" Binding="{Binding Phone}"/>
+                                        Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
+                    <DataGridTextColumn Header="Téléphone" Binding="{Binding Phone, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}"/>
                     <DataGridTextColumn Header="# Emprunts" IsReadOnly="true" Binding="{Binding StatsBorrowsCount}" />
                     <DataGridTemplateColumn>
                         <DataGridTemplateColumn.CellTemplate >
@@ -131,9 +130,23 @@
                                             SelectedItemBinding="{Binding Type, Converter={StaticResource GearTypeConverter}}" 
                                             ItemsSource="{Binding Source={StaticResource GearTypeEnum}, Converter={StaticResource GearTypeConverter}}" />
                     <DataGridTextColumn Header="Nom" EditingElementStyle="{StaticResource ErrorStyle}"
-                                        Binding="{Binding Name, ValidatesOnNotifyDataErrors=True, ValidatesOnExceptions=True, NotifyOnValidationError=True}" />
-                    <DataGridTextColumn Header="Code Barre" EditingElementStyle="{StaticResource ErrorStyle}"
-                                        Binding="{Binding BarCode, ValidatesOnNotifyDataErrors=True, ValidatesOnExceptions=True, NotifyOnValidationError=True}" />
+                                        Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
+                    <DataGridTemplateColumn Header="Code barre">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type local:GearProxy}">
+                                <TextBlock Text="{Binding BarCode, ValidatesOnNotifyDataErrors=True}" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate DataType="{x:Type local:GearProxy}">
+                                <TextBox Text="{Binding BarCode, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" Style="{StaticResource ErrorStyle}">
+                                    <i:Interaction.Behaviors>
+                                        <local:TranslateKeyboardInputBehavior />
+                                    </i:Interaction.Behaviors>
+                                </TextBox>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
                     <DataGridTemplateColumn Header="Taille" CellTemplateSelector="{StaticResource SizeTemplateSelector}" />
                     <DataGridTextColumn Header="# Emprunts" IsReadOnly="true" Binding="{Binding StatsBorrowsCount}" />
                     <DataGridTextColumn Header="Σ Durée emprunts" IsReadOnly="true" Binding="{Binding StatsBorrowsDuration, Converter={StaticResource DurationConverter}}" />

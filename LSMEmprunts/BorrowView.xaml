@@ -29,7 +29,7 @@
                 <RowDefinition Height="auto" />
             </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0">Scannez votre licence ou saisissez votre nom</TextBlock>
+            <TextBlock Grid.Row="0">Saisissez votre nom</TextBlock>
             <TextBox Grid.Row="1" Text="{Binding Path=SelectedUserText, UpdateSourceTrigger=PropertyChanged}">
                 <i:Interaction.Behaviors>
                     <local:BindOnEnterBehavior/>
@@ -68,10 +68,11 @@
             </Grid.RowDefinitions>
 
             <TextBlock Grid.Row="0">Scannez la matériel ou double cliquez dans la liste</TextBlock>
-            <TextBox Grid.Row="1" Text="{Binding SelectedGearId}" IsEnabled="{Binding UserSelected}">
+            <TextBox Grid.Row="1" Text="{Binding SelectedGearId, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding UserSelected}">
                 <i:Interaction.Behaviors>
                     <local:BindOnEnterBehavior/>
                     <local:SetFocusBehavior IsFocused="{Binding GearInputFocused}" />
+                    <local:TranslateKeyboardInputBehavior />
                 </i:Interaction.Behaviors>
             </TextBox>
             

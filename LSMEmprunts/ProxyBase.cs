@@ -1,4 +1,6 @@
-﻿using System;
+﻿using FluentValidation;
+using FluentValidation.Results;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -9,20 +11,22 @@ using System.Runtime.CompilerServices;
 
 namespace LSMEmprunts
 {
-    public abstract class ProxyBase<WrappedType> : INotifyPropertyChanged, INotifyDataErrorInfo, IEditableObject
+    public abstract class ProxyBase<WrappedType, DerivedType> : INotifyPropertyChanged, INotifyDataErrorInfo, IEditableObject
         where WrappedType : class
+        where DerivedType : ProxyBase<WrappedType, DerivedType>
     {
         public readonly WrappedType WrappedElt;
 
         protected ProxyBase(WrappedType inner)
         {
             WrappedElt = inner;
+            System.Diagnostics.Debug.Assert(this.GetType().IsAssignableTo(typeof(DerivedType)));
         }
 
         #region INotifyPropertyChanged implementation
         public event PropertyChangedEventHandler PropertyChanged;
 
-        protected bool SetProperty<T>(Expression<Func<WrappedType, T>> selector, T value, [CallerMemberName] string propertyName = null)
+        protected bool SetProperty<T>(Expression<Func<WrappedType, T>> selector, T value, bool validate= true, [CallerMemberName] string propertyName = null)
         {
             var memberExpression = selector.Body as MemberExpression;
             if (memberExpression == null)
@@ -43,27 +47,35 @@ namespace LSMEmprunts
 
             propertyInfo.SetValue(WrappedElt, value);
             RaisePropertyChanged(propertyName);
+            if (validate)
+            {
+                ValidateAllProperties();
+            }
             return true;
         }
 
-        protected bool SetProperty<T>(ref T backingField, T value, [CallerMemberName] string propertyName = null)
+        protected bool SetProperty<T>(ref T backingField, T value, bool validate = true, [CallerMemberName] string propertyName = null)
         {
             if (!Equals(backingField, value))
             {
                 backingField = value;
                 RaisePropertyChanged(propertyName);
+                if (validate)
+                {
+                    ValidateAllProperties();
+                }
                 return true;
             }
             return false;
         }
 
-        private void RaisePropertyChanged(string propertyName)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
+        private void RaisePropertyChanged(string propertyName) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         #endregion
 
         #region INotifyDataErrorInfo implementation
+
+        protected virtual IValidator<DerivedType> Validator { get; } = null;
+
         public event EventHandler<DataErrorsChangedEventArgs> ErrorsChanged;
 
         public IEnumerable GetErrors(string propertyName)
@@ -72,44 +84,58 @@ namespace LSMEmprunts
             {
                 return null;
             }
-            _ErrorsPerProperty.TryGetValue(propertyName, out List<object> retval);
-            return retval;
+            if (_ErrorsPerProperty.TryGetValue(propertyName, out List<ValidationFailure> retval))
+            {
+                return retval.Select(e => e.ErrorMessage);
+            }
+            return null;
         }
 
         public bool HasErrors => _ErrorsPerProperty.Any(e => e.Value.Count > 0);
 
-        private readonly Dictionary<string, List<object>> _ErrorsPerProperty = new Dictionary<string, List<object>>();
+        private readonly Dictionary<string, List<ValidationFailure>> _ErrorsPerProperty = new();
 
-        protected void AddError(string propertyName, object error)
+        protected void ValidateAllProperties()
         {
-            if (_ErrorsPerProperty.TryGetValue(propertyName, out List<object> errors) == false)
+            var validator = Validator;
+            if (validator != null)
             {
-                errors = new List<object>();
-                _ErrorsPerProperty.Add(propertyName, errors);
-            }
-            errors.Add(error);
-            RaiseErrorsChanged(propertyName);
-        }
+                var currentErrors = new Dictionary<string, List<ValidationFailure>>(_ErrorsPerProperty);
+                _ErrorsPerProperty.Clear();
+                var validationResult = validator.Validate((DerivedType)this);
+                foreach (var validationErrorsPerProperty in validationResult.Errors.GroupBy(e => e.PropertyName))
+                {
+                    _ErrorsPerProperty.Add(validationErrorsPerProperty.Key, new List<ValidationFailure>(validationErrorsPerProperty));
+                }
 
-        protected void ClearErrors(string propertyName)
-        {
-            _ErrorsPerProperty.Remove(propertyName);
-            RaiseErrorsChanged(propertyName);
-        }
-
-        protected void RemoveError(string propertyName, object error)
-        {
-            if (_ErrorsPerProperty.TryGetValue(propertyName, out List<object> errors))
-            {
-                errors.Remove(error);
-                RaiseErrorsChanged(propertyName);
+                RaiseErrorsChangedIfReallyChanged(currentErrors, _ErrorsPerProperty);
+                RaiseErrorsChangedIfReallyChanged(_ErrorsPerProperty, currentErrors);
             }
         }
 
-        private void RaiseErrorsChanged(string propertyName)
-        {
-            ErrorsChanged?.Invoke(this, new DataErrorsChangedEventArgs(propertyName));
+        private void RaiseErrorsChangedIfReallyChanged(Dictionary<string, List<ValidationFailure>> errors1, Dictionary<string, List<ValidationFailure>> errors2)
+        { 
+            foreach((var propName, var errorsPerProps1) in errors1)
+            {
+                if (!errors2.TryGetValue(propName, out var errorsPerProps2))
+                {
+                    RaiseErrorsChanged(propName);
+                }
+                else
+                {
+                    foreach(var error in errorsPerProps1)
+                    {
+                        if (!errorsPerProps2.Any(e=>e.ErrorMessage == error.ErrorMessage))
+                        {
+                            RaiseErrorsChanged(propName);
+                            break;
+                        }
+                    }
+                }
+            }
         }
+
+        private void RaiseErrorsChanged(string propertyName) => ErrorsChanged?.Invoke(this, new DataErrorsChangedEventArgs(propertyName));
         #endregion
 
         #region IEditableObject implementation
@@ -138,6 +164,7 @@ namespace LSMEmprunts
                     RaisePropertyChanged(propName);
                 }
                 _Memento = null;
+                ValidateAllProperties();
             }
         }
         #endregion

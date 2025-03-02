@@ -180,14 +180,6 @@ namespace LSMEmprunts
                     return;
                 }
 
-                var matchingUserByLicence = _UsersList.FirstOrDefault(e => e.LicenceScanId == value);
-                if (matchingUserByLicence != null)
-                {
-                    System.Diagnostics.Debug.WriteLine("User input - found matching user by licence");
-                    SetSelectedUser(matchingUserByLicence);
-                    return;
-                }
-
                 OnPropertyChanged();
             }
         }
