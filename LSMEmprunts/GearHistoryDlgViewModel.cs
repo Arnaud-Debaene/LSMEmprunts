@@ -1,10 +1,11 @@
-﻿using CommunityToolkit.Mvvm.Input;
-using LSMEmprunts.Data;
+﻿using LSMEmprunts.Data;
 using Microsoft.EntityFrameworkCore;
 using MvvmDialogs.ViewModels;
+using ReactiveUI;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows.Input;
 
 namespace LSMEmprunts
 {
@@ -22,7 +23,7 @@ namespace LSMEmprunts
 
         public GearHistoryDlgViewModel(Gear gear, Context context)
         {
-            ClearHistoryCommand = new RelayCommand(ClearHistory);
+            ClearHistoryCommand = ReactiveCommand.Create(ClearHistory);
 
             _Context = context;
             _Gear = gear;
@@ -35,7 +36,7 @@ namespace LSMEmprunts
                 .Where(e => e.Gear == gear).OrderByDescending(e => e.BorrowTime));
         }
 
-        public RelayCommand ClearHistoryCommand { get; }
+        public ICommand ClearHistoryCommand { get; }
 
         private void ClearHistory()
         {

@@ -1,7 +1,6 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using LSMEmprunts.Data;
+﻿using LSMEmprunts.Data;
 using Microsoft.EntityFrameworkCore;
+using ReactiveUI;
 using System.Collections.ObjectModel;
 using System.Configuration;
 using System.Linq;
@@ -9,7 +8,7 @@ using System.Windows.Input;
 
 namespace LSMEmprunts
 {
-    public sealed class HomeViewModel : ObservableObject
+    public sealed class HomeViewModel : ReactiveObject
     {       
         public ObservableCollection<Borrowing> ActiveBorrowings { get; }
 
@@ -17,9 +16,9 @@ namespace LSMEmprunts
         {
             using (var context = ContextFactory.OpenContext())
             {
-                BorrowCommand = new RelayCommand(BorrowCmd);
-                ReturnCommand = new RelayCommand(ReturnCmd);
-                SettingsCommand = new RelayCommand(SettingsCmd);
+                BorrowCommand = ReactiveCommand.Create(BorrowCmd);
+                ReturnCommand = ReactiveCommand.Create(ReturnCmd);
+                SettingsCommand = ReactiveCommand.Create(SettingsCmd);
 
                 ActiveBorrowings = new ObservableCollection<Borrowing>(
                     context.Borrowings.Include(e=>e.User).Include(e=>e.Gear)

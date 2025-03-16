@@ -8,7 +8,7 @@
              xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:BorrowViewModel}" 
              d:DesignHeight="600" d:DesignWidth="600">
-    <Grid Margin="10">
+<Grid Margin="10">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="auto"/>
@@ -21,7 +21,7 @@
             <RowDefinition Height="auto"/>
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Margin="5">
+        <Grid Grid.Row="0" Margin="5" IsEnabled="{Binding UserSelected, Converter={StaticResource BoolToInvertConverter}}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="auto" />
                 <RowDefinition Height="auto" />
@@ -33,26 +33,21 @@
             <TextBox Grid.Row="1" Text="{Binding Path=SelectedUserText, UpdateSourceTrigger=PropertyChanged}">
                 <i:Interaction.Behaviors>
                     <local:BindOnEnterBehavior/>
-                    <local:SetFocusBehavior IsFocused="{Binding UserInputFocused}" />
+                    <local:CaptureKeyboardBehavior Active="{Binding UserSelected, Converter={StaticResource BoolToInvertConverter}}" />
                 </i:Interaction.Behaviors>
             </TextBox>
 
             <ListBox Grid.Row="2" ItemsSource="{Binding Users}" SelectedItem="{Binding CurrentUser}">
-                <i:Interaction.Behaviors>
-                    <local:ItemsControlTagBehavior TaggedItems="{Binding SelectedUsers}" />
-                </i:Interaction.Behaviors>
-                
                 <ListBox.ItemTemplate>
                     <DataTemplate DataType="{x:Type data:User}">
-                        <TextBlock Text="{Binding Name}" 
-                                   FontWeight="{Binding RelativeSource={RelativeSource Self}, Path=(local:ItemsControlTagBehavior.Tagged), Converter={StaticResource BoolToBoldConverter}}" />
+                        <TextBlock Text="{Binding Name}" />
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
             
             <StackPanel Grid.Row="3" Orientation="Horizontal">
                 <TextBlock>Utilisateur : </TextBlock>
-                <TextBlock FontWeight="Bold" Text="{Binding SelectedUser.Name}" />
+                <TextBlock FontWeight="Bold" Text="{Binding CurrentUser.Name}" />
             </StackPanel>
         </Grid>
         
@@ -71,8 +66,9 @@
             <TextBox Grid.Row="1" Text="{Binding SelectedGearId, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding UserSelected}">
                 <i:Interaction.Behaviors>
                     <local:BindOnEnterBehavior/>
-                    <local:SetFocusBehavior IsFocused="{Binding GearInputFocused}" />
+                    <local:CaptureKeyboardBehavior Active="{Binding GearTextBoxShallRetainFocus}" />
                     <local:TranslateKeyboardInputBehavior />
+                    <local:OnlyNumbersAllowedBehavior />
                 </i:Interaction.Behaviors>
             </TextBox>
             
@@ -103,7 +99,11 @@
                 <RowDefinition Height="3*"/>
             </Grid.RowDefinitions>
             <TextBlock Grid.Row="0">Commentaire</TextBlock>
-            <TextBox Grid.Row="1" TextWrapping="Wrap" AcceptsReturn="True" Text="{Binding Comment}" IsEnabled="{Binding UserSelected}"/>
+            <TextBox Grid.Row="1" TextWrapping="Wrap" AcceptsReturn="True" Text="{Binding Comment}" IsEnabled="{Binding UserSelected}">
+                <i:Interaction.Behaviors>
+                    <local:SetFocusBehavior IsFocused="{Binding CommentTextBoxFocused}" />
+                </i:Interaction.Behaviors>
+            </TextBox>
 
             <DataGrid Grid.Row="2" ItemsSource="{Binding BorrowedGears}" Margin="0 5"
                       AutoGenerateColumns="False" IsReadOnly="True">

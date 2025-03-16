@@ -1,6 +1,7 @@
 ﻿using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.Input;
+using System.Windows.Input;
 using MvvmDialogs.ViewModels;
+using ReactiveUI;
 
 namespace LSMEmprunts
 {
@@ -11,7 +12,7 @@ namespace LSMEmprunts
         public ConfirmWindowViewModel(string msg)
         {
             Message = msg;
-            ConfirmCommand=new RelayCommand(ConfirmCmd);
+            ConfirmCommand=ReactiveCommand.Create(ConfirmCmd);
         }
 
         private readonly TaskCompletionSource<bool> _ResultTask = new TaskCompletionSource<bool>();
@@ -25,7 +26,7 @@ namespace LSMEmprunts
             base.RequestClose();
         }
 
-        public RelayCommand ConfirmCommand { get; }
+        public ICommand ConfirmCommand { get; }
 
         private void ConfirmCmd()
         {

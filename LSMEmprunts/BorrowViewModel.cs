@@ -1,15 +1,17 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
+﻿using DynamicData.Binding;
 using LSMEmprunts.Data;
+using ReactiveUI;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Reactive;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Data;
+using System.Windows.Input;
 
 namespace LSMEmprunts
 {
@@ -26,7 +28,7 @@ namespace LSMEmprunts
                 var converter2 = new GearDisplayNameConverter();
                 return converter.Convert(Gear.Type, typeof(string), null, null) + " " + converter2.Convert(Gear, typeof(string), null, null);
             }
-        }       
+        }
     }
 
     /// <summary>
@@ -67,11 +69,11 @@ namespace LSMEmprunts
         }
     }
 
-    public sealed class BorrowViewModel : ObservableObject, IDisposable
+    public sealed class BorrowViewModel : ReactiveObject, IDisposable
     {
         private readonly Context _Context;
 
-        private readonly List<User> _UsersList;
+        private readonly ObservableCollection<User> _UsersList;
 
         public ICollectionView Users { get; }
         public ICollectionView Gears { get; }
@@ -84,52 +86,40 @@ namespace LSMEmprunts
         public User CurrentUser
         {
             get => _CurrentUser;
-            set
-            {
-                if (SetProperty(ref _CurrentUser, value) && value!=null)
-                {
-                    SetSelectedUser(value);
-                }
-            }
+            set => this.RaiseAndSetIfChanged(ref _CurrentUser, value);
         }
+
+        private readonly ObservableAsPropertyHelper<bool> _UserSelected;
+        public bool UserSelected => _UserSelected.Value;
 
         private void SetSelectedUser(User user)
         {
             System.Diagnostics.Debug.Assert(user != null);
-            SelectedUsers.Clear();
-            SelectedUsers.Add(user);
 
             CurrentUser = user;
-            _SelectedUserText = null;
-
-            OnPropertyChanged(nameof(SelectedUserText));
-            OnPropertyChanged(nameof(UserSelected));
-            OnPropertyChanged(nameof(SelectedUser));
+            SelectedUserText = string.Empty;
 
             Users.Refresh();
             StartOrResetValidateTicker();
-            GearInputFocused = true; //move focus to gear input.            
-        }
-
-        public bool UserSelected => SelectedUsers.Count > 0;
-
-        public User SelectedUser => SelectedUsers.FirstOrDefault();
-
-        /// <summary>
-        /// this collection contains at most 1 item that is the "curerntly selected and validated" user : displayed in bold below the users list, 
-        /// and the one that is used when saving the borrow operation
-        /// </summary>
-        public ObservableCollection<User> SelectedUsers { get; } = new ObservableCollection<User>();
+        }       
 
         public BorrowViewModel()
         {
             _Context = ContextFactory.OpenContext();
 
-            ValidateCommand = new RelayCommand(ValidateCmd, CanValidateCmd);
-            CancelCommand = new RelayCommand(GoBackToHomeView);
-            SelectGearCommand = new RelayCommand<GearBorrowInfo>(SelectGearCmd);
+            var hasBorrowedGears = BorrowedGears.ToObservableChangeSet().Select(_ => BorrowedGears.Any());
+            ValidateCommand = ReactiveCommand.Create(ValidateCmd, hasBorrowedGears);
+            CancelCommand = ReactiveCommand.Create(GoBackToHomeView);
+            SelectGearCommand = ReactiveCommand.Create<GearBorrowInfo>(SelectGearCmd);
 
-            _UsersList = _Context.Users.ToList();
+            //configuration of UserSelected computed property
+            _UserSelected = this.ObservableForProperty(x => x.CurrentUser, user => user != null).ToProperty(this, x => x.UserSelected);
+
+            //configuration of GearTextBoxShallRetainFocus computed property
+            _GearTextBoxShallRetainFocus = this.WhenAnyValue(x => x.CurrentUser, x => x.CommentTextBoxFocused, (user, commentSelected) => user != null && !commentSelected)
+                .ToProperty(this, x => x.GearTextBoxShallRetainFocus);
+
+            _UsersList = new ObservableCollection<User>(_Context.Users);
             Users = CollectionViewSource.GetDefaultView(_UsersList);
             Users.Filter = (item) =>
             {
@@ -142,25 +132,30 @@ namespace LSMEmprunts
             Users.SortDescriptions.Add(new SortDescription(nameof(User.Name), ListSortDirection.Ascending));
 
             var gears = (from gear in _Context.Gears
-                    let borrowed = gear.Borrowings.Any(e => e.State == BorrowingState.Open)
-                    select new GearBorrowInfo { Gear = gear, Available = !borrowed }).OrderByDescending(e => e.Available)
+                         let borrowed = gear.Borrowings.Any(e => e.State == BorrowingState.Open)
+                         select new GearBorrowInfo { Gear = gear, Available = !borrowed }).OrderByDescending(e => e.Available)
                 .ToList();
+
             Gears = CollectionViewSource.GetDefaultView(gears);
             ((ListCollectionView)Gears).CustomSort = new GearComparer();
             Gears.Filter = (item) =>
             {
-                var gearInfo = (GearBorrowInfo) item;
+                var gearInfo = (GearBorrowInfo)item;
                 if (BorrowedGears.Any(e => e == gearInfo.Gear))
                 {
                     return false;
                 }
                 return true;
             };
+
+            this.WhenAnyValue(e => e.SelectedUserText).Subscribe(x => HandleSelectedUserTextChange(x));
+
+            this.WhenAnyValue(e=>e.SelectedGearId).Subscribe(async (x) => await AnalyzeSelectedGearId(x));
         }
 
         public void Dispose()
         {
-            AutoValidateTicker?.Dispose();
+            _AutoValidateTickerSubscription?.Dispose();
             _Context.Dispose();
         }
 
@@ -168,19 +163,17 @@ namespace LSMEmprunts
         public string SelectedUserText
         {
             get => _SelectedUserText;
-            set
+            set => this.RaiseAndSetIfChanged(ref _SelectedUserText, value);           
+        }
+
+        private void HandleSelectedUserTextChange(string value)
+        {
+            Users.Refresh();
+            if (Users.Cast<User>().Count() == 1)
             {
-                _SelectedUserText = value;
-                Users.Refresh();
-
-                if (Users.Cast<User>().Count() == 1)
-                {
-                    System.Diagnostics.Debug.WriteLine("User input - found matching user by name");
-                   SetSelectedUser(Users.Cast<User>().First());
-                    return;
-                }
-
-                OnPropertyChanged();
+                System.Diagnostics.Debug.WriteLine("User input - found matching user by name");
+                SetSelectedUser(Users.Cast<User>().First());
+                return;
             }
         }
 
@@ -192,24 +185,23 @@ namespace LSMEmprunts
         public string Comment
         {
             get => _Comment;
-            set => SetProperty(ref _Comment, value);
+            set => this.RaiseAndSetIfChanged(ref _Comment, value);
         }
 
         private string _SelectedGearId;
         public string SelectedGearId
         {
             get => _SelectedGearId;
-            set
-            {
-                if (SetProperty(ref _SelectedGearId, value))
-                {
-                    Application.Current.Dispatcher.BeginInvoke(new Action(() => AnalyzeSelectedGearId(value)));
-                }
-            }
+            set => this.RaiseAndSetIfChanged(ref _SelectedGearId, value);
         }
 
-        private async void AnalyzeSelectedGearId(string value)
+        private async Task AnalyzeSelectedGearId(string value)
         {
+            if (string.IsNullOrEmpty(value))
+            {
+                return;
+            }
+
             var valueLower = value.ToLower();
             var matchingGear = _Context.Gears.FirstOrDefault(e => e.Name.ToLower() == valueLower);
 
@@ -229,18 +221,18 @@ namespace LSMEmprunts
             if (matchingGear != null)
             {
                 await SelectGearToBorrow(matchingGear);
-                SetProperty(ref _SelectedGearId, string.Empty, nameof(SelectedGearId));
+                SelectedGearId = string.Empty;
             }
         }
 
-        public RelayCommand ValidateCommand { get; }
+        public ICommand ValidateCommand { get; }
         private async void ValidateCmd()
         {
-            AutoValidateTicker?.Dispose();
+            _AutoValidateTickerSubscription?.Dispose();
 
             var date = DateTime.Now;
 
-            foreach(var existingBorrowing in _BorrowingsToForceClose)
+            foreach (var existingBorrowing in _BorrowingsToForceClose)
             {
                 existingBorrowing.State = BorrowingState.ForcedClose;
                 existingBorrowing.Comment = existingBorrowing.Comment ?? string.Empty + " Clos de force car matériel réemprunté";
@@ -252,7 +244,7 @@ namespace LSMEmprunts
             {
                 BorrowTime = date,
                 Gear = e,
-                User = SelectedUser,
+                User = CurrentUser,
                 Comment = Comment,
                 State = BorrowingState.Open
             }));
@@ -260,33 +252,28 @@ namespace LSMEmprunts
 
             GoBackToHomeView();
         }
-        private bool CanValidateCmd()
-        {
-            return SelectedUser != null && BorrowedGears.Any();
-        }
 
-        public RelayCommand CancelCommand { get; }
+        public ICommand CancelCommand { get; }
         private void GoBackToHomeView()
         {
             MainWindowViewModel.Instance.CurrentPageViewModel = new HomeViewModel();
         }
 
+        private IDisposable _AutoValidateTickerSubscription;
+
         private CountDownTicker _AutoValidateTicker;
-        public CountDownTicker AutoValidateTicker{
+        public CountDownTicker AutoValidateTicker
+        {
             get => _AutoValidateTicker;
-            set => SetProperty(ref _AutoValidateTicker, value);
+            set => this.RaiseAndSetIfChanged(ref _AutoValidateTicker, value);
         }
 
         private void StartOrResetValidateTicker()
         {
-            if (AutoValidateTicker == null && SelectedUser != null)
+            if (AutoValidateTicker == null && CurrentUser != null)
             {
                 AutoValidateTicker = new CountDownTicker(60);
-                AutoValidateTicker.Tick += () =>
-                {
-                    if (CanValidateCmd())
-                        ValidateCmd();
-                };
+                _AutoValidateTickerSubscription = AutoValidateTicker.Tick.InvokeCommand(this, x => x.ValidateCommand);
             }
             else
             {
@@ -294,21 +281,7 @@ namespace LSMEmprunts
             }
         }
 
-        private bool _UserInputFocused = true;
-        public bool UserInputFocused
-        {
-            get => _UserInputFocused;
-            set => SetProperty(ref _UserInputFocused, value);
-        }
-
-        private bool _GearInputFocused;
-        public bool GearInputFocused
-        {
-            get => _GearInputFocused;
-            set => SetProperty(ref _GearInputFocused, value);
-        }
-
-        public RelayCommand<GearBorrowInfo> SelectGearCommand { get; }
+        public ReactiveCommand<GearBorrowInfo, Unit> SelectGearCommand { get; }
         public async void SelectGearCmd(GearBorrowInfo info)
         {
             await SelectGearToBorrow(info.Gear);
@@ -339,13 +312,34 @@ namespace LSMEmprunts
 
             BorrowedGears.Add(gear);
 
-            ValidateCommand.NotifyCanExecuteChanged();
-
             //start auto close ticker if required
             StartOrResetValidateTicker();
 
             Gears.Refresh();
-            GearInputFocused = true; //move focus to gear input.
         }
+
+        #region keyboard focus handling
+        private bool _CommentTextBoxFocused = false;
+        /// <summary>
+        /// property bound to the keyboard IsFocused property of the comment text box
+        /// </summary>
+        public bool CommentTextBoxFocused
+        {
+            get => _CommentTextBoxFocused;
+            set => this.RaiseAndSetIfChanged(ref _CommentTextBoxFocused, value);
+
+        }
+
+        /// <summary>
+        /// when this property is true, the Gear Id text box captures keyboard focus, so that all barcode scans go to it
+        /// </summary>
+        /// <remarks>
+        /// We capture the keyboard:
+        /// - once a user has been selected
+        /// - and NOT when the user is inputing comment text
+        /// </remarks>
+        private readonly ObservableAsPropertyHelper<bool> _GearTextBoxShallRetainFocus;
+        public bool GearTextBoxShallRetainFocus => _GearTextBoxShallRetainFocus.Value;
+        #endregion
     }
 }

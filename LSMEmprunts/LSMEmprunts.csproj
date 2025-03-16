@@ -6,7 +6,6 @@
 		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
 	</PropertyGroup>
 	<ItemGroup>
-	  <PackageReference Include="CommunityToolkit.Mvvm" Version="7.1.2" />
 	  <PackageReference Include="Extended.Wpf.Toolkit" Version="4.6.0" />
 	  <PackageReference Include="FluentValidation" Version="11.11.0" />
 	  <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="5.0.17">
@@ -15,5 +14,6 @@
 	  </PackageReference>
 	  <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.77" />
 	  <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="5.0.10" />
+	  <PackageReference Include="ReactiveUI.WPF" Version="16.4.15" />
 	</ItemGroup>
 </Project>

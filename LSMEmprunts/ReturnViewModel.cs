@@ -1,12 +1,16 @@
-﻿using LSMEmprunts.Data;
+﻿using DynamicData;
+using DynamicData.Binding;
+using LSMEmprunts.Data;
 using Microsoft.EntityFrameworkCore;
+using ReactiveUI;
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Reactive;
+using System.Reactive.Linq;
 using System.Windows.Data;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
+using System.Windows.Input;
 
 namespace LSMEmprunts
 {
@@ -26,28 +30,32 @@ namespace LSMEmprunts
         }
     }
 
-    public sealed class ReturnInfo : ObservableObject
+    public sealed class ReturnInfo : ReactiveObject
     {
         public Borrowing Borrowing { get; set; }
         public string Comment { get; set; }
     }
 
-    public sealed class ReturnViewModel : ObservableObject, IDisposable
+    public sealed class ReturnViewModel : ReactiveObject, IDisposable
     {
         private readonly Context _Context;
 
-        public ObservableCollection<ReturnInfo> ClosingBorrowings { get; } = new ObservableCollection<ReturnInfo>();
+        public ObservableCollection<ReturnInfo> ClosingBorrowings { get; } = new();
 
         public ICollectionView Gears { get; }
   
 
         public ReturnViewModel()
         {
-            SelectGearCommand = new RelayCommand<GearReturnInfo>(SelectGearCmd);
-            ValidateCommand = new RelayCommand(ValidateCmd, CanValidateCmd);
-            CancelCommand = new RelayCommand(GoBackToHomeView);
+            SelectGearCommand = ReactiveCommand.Create<GearReturnInfo>(SelectGearCmd);
+            
+            var canValidateCmd = ClosingBorrowings.ToObservableChangeSet().ToCollection().Any();
+            ValidateCommand = ReactiveCommand.Create(ValidateCmd, canValidateCmd);
+            
+            CancelCommand = ReactiveCommand.Create(GoBackToHomeView);
 
-            ClosingBorrowings.CollectionChanged += (s, e) => ValidateCommand.NotifyCanExecuteChanged();
+            this.WhenAnyValue(e => e.SelectedGearId).Subscribe(x => HandleSelectedGearIdChange(x));
+
 
             _Context = ContextFactory.OpenContext();
 
@@ -66,13 +74,11 @@ namespace LSMEmprunts
                 }
                 return true;
             };
-
-            GearInputFocused = true;
         }
 
         public void Dispose()
         {
-            AutoValidateTicker?.Dispose();
+            _AutoValidateTickerSubscription?.Dispose();
             _Context?.Dispose();
         }
 
@@ -80,61 +86,63 @@ namespace LSMEmprunts
         public string SelectedGearId
         {
             get => _SelectedGearId;
-            set
-            {
-                var valueLower = value.ToLower();
-                var matchingGear = _Context.Gears.FirstOrDefault(e => e.Name.ToLower() == valueLower);
-                if (matchingGear != null)
-                {
-                    System.Diagnostics.Debug.WriteLine("Found a matching gear by name");
-                }
-                else
-                {
-                    matchingGear = _Context.Gears.FirstOrDefault(e => e.BarCode == value);
-                    if (matchingGear != null)
-                    {
-                        System.Diagnostics.Debug.WriteLine("Found a matching gear by scan");
-                    }
-                }
+            set => this.RaiseAndSetIfChanged(ref _SelectedGearId, value);
+        }
 
+        private void HandleSelectedGearIdChange(string selectedGearId)
+        {
+            if (string.IsNullOrEmpty(selectedGearId))
+            {
+                return;
+            }
+
+            var valueLower = selectedGearId.ToLower();
+            var matchingGear = _Context.Gears.FirstOrDefault(e => e.Name.ToLower() == valueLower);
+            if (matchingGear != null)
+            {
+                System.Diagnostics.Debug.WriteLine("Found a matching gear by name");
+            }
+            else
+            {
+                matchingGear = _Context.Gears.FirstOrDefault(e => e.BarCode == selectedGearId);
                 if (matchingGear != null)
                 {
-                    SelectGearToReturn(matchingGear);
+                    System.Diagnostics.Debug.WriteLine("Found a matching gear by scan");
                 }
-                else
-                {
-                    SetProperty(ref _SelectedGearId, value);
-                }
+            }
+
+            if (matchingGear != null)
+            {
+                SelectGearToReturn(matchingGear);
             }
         }
 
-        public RelayCommand ValidateCommand { get; }
+        public ICommand ValidateCommand { get; }
         private void ValidateCmd()
         {
-            _AutoValidateTicker?.Dispose();
-
             _Context.SaveChanges();
             GoBackToHomeView();
         }
-        private bool CanValidateCmd() => ClosingBorrowings.Any();
 
-        public RelayCommand CancelCommand { get; }
+        public ICommand CancelCommand { get; }
         private void GoBackToHomeView()
         {
             MainWindowViewModel.Instance.CurrentPageViewModel = new HomeViewModel();
         }
 
-        public RelayCommand<GearReturnInfo> SelectGearCommand { get; }
+        public ReactiveCommand<GearReturnInfo, Unit> SelectGearCommand { get; }
         public void SelectGearCmd(GearReturnInfo info)
         {
             SelectGearToReturn(info.Gear);
         }
 
+        private IDisposable _AutoValidateTickerSubscription;
+
         private CountDownTicker _AutoValidateTicker;
         public CountDownTicker AutoValidateTicker
         {
             get => _AutoValidateTicker;
-            set => SetProperty(ref _AutoValidateTicker, value);
+            set => this.RaiseAndSetIfChanged(ref _AutoValidateTicker, value);
         }
 
         private void SelectGearToReturn(Gear gear)
@@ -144,7 +152,7 @@ namespace LSMEmprunts
             {
                 var vm = new WarningWindowViewModel("Matériel déjà rendu");
                 MainWindowViewModel.Instance.Dialogs.Add(vm);
-                SetProperty(ref _SelectedGearId, string.Empty);
+                SelectedGearId = string.Empty;
                 return;
             }
 
@@ -180,28 +188,15 @@ namespace LSMEmprunts
             if (AutoValidateTicker == null)
             {
                 AutoValidateTicker = new CountDownTicker(60);
-                AutoValidateTicker.Tick += () =>
-                {
-
-                    if (CanValidateCmd())
-                        ValidateCmd();
-                };
+                _AutoValidateTickerSubscription = AutoValidateTicker.Tick.InvokeCommand(this, x => x.ValidateCommand);
             }
             else
             {
                 AutoValidateTicker.Reset();
             }
 
-            SetProperty(ref _SelectedGearId, string.Empty, nameof(SelectedGearId));
+            SelectedGearId = string.Empty;
             Gears.Refresh();
-            GearInputFocused = true;
-        }
-
-        private bool _GearInputFocused;
-        public bool GearInputFocused
-        {
-            get => _GearInputFocused;
-            set => SetProperty(ref _GearInputFocused, value);
-        }
+        }        
     }
 }

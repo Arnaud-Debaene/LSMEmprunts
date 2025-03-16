@@ -1,7 +1,9 @@
-﻿using CommunityToolkit.Mvvm.Input;
-using MvvmDialogs.ViewModels;
+﻿using MvvmDialogs.ViewModels;
+using ReactiveUI;
+using System.Reactive;
 using System.Threading.Tasks;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace LSMEmprunts
 {
@@ -12,11 +14,11 @@ namespace LSMEmprunts
 
         public PasswordDlgViewModel()
         {
-            OkCommand = new RelayCommand<PasswordBox>(OnOk);
-            CancelCommand = new RelayCommand(OnCancel);
+            OkCommand = ReactiveCommand.Create<PasswordBox>(OnOk);
+            CancelCommand = ReactiveCommand.Create(OnCancel);
         }
 
-        public RelayCommand<PasswordBox> OkCommand { get; }
+        public ReactiveCommand<PasswordBox, Unit> OkCommand { get; }
 
         public void OnOk(PasswordBox box)
         {
@@ -24,7 +26,7 @@ namespace LSMEmprunts
             _ResultTask.SetResult(box.Password);
         }
 
-        public RelayCommand CancelCommand { get; }
+        public ICommand CancelCommand { get; }
 
         public void OnCancel()
         {

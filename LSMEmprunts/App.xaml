@@ -177,6 +177,20 @@
                 <x:Type Type="data:BorrowingState" />
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
+        
+        <!--validation error template-->
+        <ControlTemplate x:Key="ValidationErrorTemplate">
+                <Border BorderBrush="Red" BorderThickness="2" CornerRadius="2">
+                    <Grid>
+                    <Polygon Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Top"
+                             Points="0,0 10,0 10,10" Fill="Red"
+                             ToolTip="{Binding ElementName=MyAdorner, Path=AdornedElement.(Validation.Errors)[0].ErrorContent}"
+                             >
+                    </Polygon>
+                        <AdornedElementPlaceholder Name="MyAdorner" />                    
+                    </Grid>
+                </Border>
+        </ControlTemplate>
     </Application.Resources>
 
 

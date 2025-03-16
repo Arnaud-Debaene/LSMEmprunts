@@ -1,55 +1,42 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+﻿using ReactiveUI;
 using System;
-using System.Windows.Threading;
+using System.Reactive;
+using System.Reactive.Concurrency;
+using System.Reactive.Linq;
 
 namespace LSMEmprunts
 {
-    public sealed class CountDownTicker : ObservableObject, IDisposable
+    public sealed class CountDownTicker : ReactiveObject
     {
-        public event Action Tick;
+        public IObservable<Unit> Tick { get; }
 
         private readonly int _InitialTime;
-        private readonly DispatcherTimer _Timer;
+
+        private ObservableAsPropertyHelper<int> _RemainingTime;
+        public int RemainingTime => _RemainingTime.Value;
+
+        private IObservable<int> _Countdown;
+
 
         public CountDownTicker(int duration)
         {
             _InitialTime = duration;
-            RemainingTime = duration;
-            _Timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-            _Timer.Tick += OnTimerTick;
-            _Timer.Start();
-        }
 
-        private void OnTimerTick(object sender, EventArgs e)
-        {
-            RemainingTime = RemainingTime - 1;
-            if (RemainingTime==0 && !_Disposed)
-            {
-                Tick?.Invoke();
-            }
-        }
+            Reset();
 
-        private int _RemainingTime;
-        public int RemainingTime
-        {
-            get => _RemainingTime;
-            set => SetProperty(ref _RemainingTime, value);
+            
+            Tick = _Countdown.Where(x => x == 0).Select(x => Unit.Default);
         }
 
         public void Reset()
         {
-            RemainingTime = _InitialTime;
-        }
+            var ts = TimeSpan.FromSeconds(1);
+            _Countdown = Observable.Timer(TimeSpan.Zero, ts, DispatcherScheduler.Current)
+                .Select(currentSeconds => (int)(_InitialTime - currentSeconds))
+                .TakeWhile(x => x >= 0);
 
-        private bool _Disposed;
-
-        public void Dispose()
-        {
-            if (!_Disposed)
-            {
-                _Disposed = true;
-                _Timer.Stop();
-            }
+            _RemainingTime = _Countdown.ToProperty(this, x => x.RemainingTime, _InitialTime);
         }
+        
     }
 }

@@ -11,7 +11,7 @@ namespace LSMEmprunts
         private readonly IEnumerable<GearProxy> _Collection;
 
         public GearProxy(Gear data, IEnumerable<GearProxy> collection)
-            : base(data)
+            : base(data, MyValidator.Instance)
         {
             _Collection = collection;
             ValidateAllProperties();
@@ -83,7 +83,7 @@ namespace LSMEmprunts
             string.Empty, "Enfant", "XXS", "XS", "S", "M", "L", "XL", "XXL"
         };
 
-        private class MyValidator : AbstractValidator<GearProxy>
+        private class MyValidator : FluentWpfValidator<GearProxy>
         {
             private MyValidator()
             {
@@ -100,7 +100,5 @@ namespace LSMEmprunts
 
             public static MyValidator Instance { get; } = new();
         }
-
-        protected override IValidator<GearProxy> Validator => MyValidator.Instance;
     }
 }

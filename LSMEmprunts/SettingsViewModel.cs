@@ -1,86 +1,87 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
+﻿using DynamicData;
+using DynamicData.Binding;
 using LSMEmprunts.Data;
 using MvvmDialogs;
+using ReactiveUI;
 using System;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Reactive;
+using System.Reactive.Linq;
 using System.Text;
 using System.Threading;
+using System.Windows.Input;
 
 namespace LSMEmprunts
 {
-    public sealed class SettingsViewModel : ObservableObject, IDisposable
+    public sealed class SettingsViewModel : ReactiveObject, IDisposable
     {
         private readonly Context _Context;
 
         public SettingsViewModel()
         {
-            ValidateCommand = new RelayCommand(ValidateCmd, CanValidateCmd);
-            CancelCommand = new RelayCommand(GoBackToHomeView);
-            ShowBorrowOnPeriodCommand = new RelayCommand(ShowBorrowOnPeriod);
+            var gearsObervableChangeSet = Gears.ToObservableChangeSet(x => x.Id);
+            var usersObervableChangeSet = Users.ToObservableChangeSet(x => x.Id);
 
-            CreateGearCommand = new RelayCommand(CreateGear);
-            DeleteGearCommand = new RelayCommand<GearProxy>(DeleteGear);
-            GearHistoryCommand = new RelayCommand<GearProxy>(ShowGearHistory);
-            GearsCsvCommand = new RelayCommand(GearsCsv);
+            var gearsHasErrorsObservable = gearsObervableChangeSet.AutoRefresh(gear => gear.HasErrors).ToCollection().Select(x => x.Any(y => y.HasErrors));
+            var usersHasErrorsObservable = usersObervableChangeSet.AutoRefresh(user => user.HasErrors).ToCollection().Select(x => x.Any(y => y.HasErrors));
+            var hasErrorsObervable = gearsHasErrorsObservable.Merge(usersHasErrorsObservable);
+            _HasErrors = hasErrorsObervable.ToProperty(this, x => x.HasErrors);
 
-            CreateUserCommand = new RelayCommand(CreateUser);
-            DeleteUserCommand = new RelayCommand<UserProxy>(DeleteUser);
-            UserHistoryCommand = new RelayCommand<UserProxy>(ShowUserHistory);
-            UsersCsvCommand = new RelayCommand(UsersCsv);
+            var canValidate = this.WhenAnyValue(x => x.IsDirty, x => x.HasErrors, (dirty, hasError) => {
+                return dirty && !hasError;
+                });            
+            ValidateCommand = ReactiveCommand.Create(ValidateCmd, canValidate);
+            CancelCommand = ReactiveCommand.Create(GoBackToHomeView);
+            ShowBorrowOnPeriodCommand = ReactiveCommand.Create(ShowBorrowOnPeriod);
+
+            CreateGearCommand = ReactiveCommand.Create(CreateGear);
+            DeleteGearCommand = ReactiveCommand.Create<GearProxy>(DeleteGear);
+            GearHistoryCommand = ReactiveCommand.Create<GearProxy>(ShowGearHistory);
+            GearsCsvCommand = ReactiveCommand.Create(GearsCsv);
+
+            CreateUserCommand = ReactiveCommand.Create(CreateUser);
+            DeleteUserCommand = ReactiveCommand.Create<UserProxy>(DeleteUser);
+            UserHistoryCommand = ReactiveCommand.Create<UserProxy>(ShowUserHistory);
+            UsersCsvCommand = ReactiveCommand.Create(UsersCsv);
 
             _Context = ContextFactory.OpenContext();
 
-            Users = new ObservableCollection<UserProxy>();
             foreach (var user in _Context.Users)
             {
                 Users.Add(BuildProxy(user));
             }
-            Gears = new ObservableCollection<GearProxy>();
             foreach (var gear in _Context.Gears)
             {
                 Gears.Add(BuildProxy(gear));
             }
 
-            UpdateProxiesHistoryStats();
+            //UpdateProxiesHistoryStats();
+            this.WhenAnyValue(x => x.StatisticsStartDate).Subscribe(x => UpdateProxiesHistoryStats(x));
+
+            //set IsDirty flag whenever gear OR users change
+            gearsObervableChangeSet.Subscribe(_ => IsDirty =true);
+            usersObervableChangeSet.Subscribe(_ => IsDirty = true);
+            IsDirty = false;
         }
 
         public void Dispose()
         {
-            foreach (var user in Users)
-            {
-                user.PropertyChanged -= OnProxyPropertyChanged;
-                user.ErrorsChanged -= OnProxyErrorsChanged;
-            }
-            foreach (var gear in Gears)
-            {
-                gear.PropertyChanged -= OnProxyPropertyChanged;
-                gear.ErrorsChanged -= OnProxyErrorsChanged;
-            }
-
             _Context.Dispose();
         }
 
-        public ObservableCollection<UserProxy> Users { get; }
-        public ObservableCollection<GearProxy> Gears { get; }
+        public ObservableCollection<UserProxy> Users { get; } = new();
+        public ObservableCollection<GearProxy> Gears { get; } = new();
 
         private DateTime _StatisticsStartDate = new(2020, 1, 1);
         public DateTime StatisticsStartDate
         {
             get => _StatisticsStartDate;
-            set
-            {
-                if (SetProperty(ref _StatisticsStartDate, value))
-                {
-                    UpdateProxiesHistoryStats();
-                }
-            }
+            set => this.RaiseAndSetIfChanged(ref _StatisticsStartDate, value);
         }
 
-        public RelayCommand ValidateCommand { get; }
+        public ICommand ValidateCommand { get; }
 
         private void ValidateCmd()
         {
@@ -88,13 +89,11 @@ namespace LSMEmprunts
             GoBackToHomeView();
         }
 
-        private bool CanValidateCmd() => _IsDirty && !HasErrors;
-
-        public RelayCommand CancelCommand { get; }
+        public ICommand CancelCommand { get; }
 
         private void GoBackToHomeView() => MainWindowViewModel.Instance.CurrentPageViewModel = new HomeViewModel();
 
-        public RelayCommand ShowBorrowOnPeriodCommand { get; }
+        public ICommand ShowBorrowOnPeriodCommand { get; }
 
         private void ShowBorrowOnPeriod()
         {
@@ -102,23 +101,17 @@ namespace LSMEmprunts
             MainWindowViewModel.Instance.Dialogs.Add(vm);
         }
 
-
-        private bool _DirtyWatchingSuspended = false;
-
         private bool _IsDirty = false;
-
-        private void SetDirty()
+        public bool IsDirty
         {
-            if (!_DirtyWatchingSuspended)
-            {
-                _IsDirty = true;
-                ValidateCommand.NotifyCanExecuteChanged();
-            }
+            get => _IsDirty;
+            private set => this.RaiseAndSetIfChanged(ref _IsDirty, value);
         }
 
-        public bool HasErrors => Gears.Any(e => e.HasErrors) || Users.Any(e => e.HasErrors);
+        private readonly ObservableAsPropertyHelper<bool> _HasErrors;
+        public bool HasErrors => _HasErrors.Value;
 
-        public RelayCommand CreateUserCommand { get; }
+        public ICommand CreateUserCommand { get; }
 
         private void CreateUser()
         {
@@ -127,16 +120,16 @@ namespace LSMEmprunts
             Users.Add(BuildProxy(user));
         }
 
-        public RelayCommand<UserProxy> DeleteUserCommand { get; }
+        public ReactiveCommand<UserProxy, Unit> DeleteUserCommand { get; }
 
         private void DeleteUser(UserProxy u)
         {
             _Context.Users.Remove(u.WrappedElt);
             Users.Remove(u);
-            SetDirty();
+            IsDirty = true;
         }
 
-        public RelayCommand<UserProxy> UserHistoryCommand { get; }
+        public ReactiveCommand<UserProxy, Unit> UserHistoryCommand { get; }
 
         private async void ShowUserHistory(UserProxy u)
         {
@@ -144,11 +137,11 @@ namespace LSMEmprunts
             MainWindowViewModel.Instance.Dialogs.Add(vm);
             if (await vm.HasModifiedData)
             {
-                SetDirty();
+                IsDirty = true;
             }
         }
 
-        public RelayCommand UsersCsvCommand { get; }
+        public ICommand UsersCsvCommand { get; }
 
         private async void UsersCsv()
         {
@@ -168,7 +161,7 @@ namespace LSMEmprunts
             }
         }
 
-        public RelayCommand CreateGearCommand { get; }
+        public ICommand CreateGearCommand { get; }
 
         private void CreateGear()
         {
@@ -177,16 +170,16 @@ namespace LSMEmprunts
             Gears.Add(BuildProxy(gear));
         }
 
-        public RelayCommand<GearProxy> DeleteGearCommand { get; }
+        public ReactiveCommand<GearProxy, Unit> DeleteGearCommand { get; }
 
         private void DeleteGear(GearProxy g)
         {
             _Context.Gears.Remove(g.WrappedElt);
             Gears.Remove(g);
-            SetDirty();
+            IsDirty = true;
         }
 
-        public RelayCommand<GearProxy> GearHistoryCommand { get; }
+        public ReactiveCommand<GearProxy, Unit> GearHistoryCommand { get; }
 
         private async void ShowGearHistory(GearProxy g)
         {
@@ -194,11 +187,11 @@ namespace LSMEmprunts
             MainWindowViewModel.Instance.Dialogs.Add(vm);
             if (await vm.HasModifiedData)
             {
-                SetDirty();
+                IsDirty = true;
             }
         }
 
-        public RelayCommand GearsCsvCommand { get; }
+        public ICommand GearsCsvCommand { get; }
 
         private async void GearsCsv()
         {
@@ -219,59 +212,35 @@ namespace LSMEmprunts
             }
         }
 
-        private UserProxy BuildProxy(User u)
+        private UserProxy BuildProxy(User u) => new(u, Users);
+
+        private GearProxy BuildProxy(Gear g) => new(g, Gears);
+
+
+        private void UpdateProxiesHistoryStats(DateTime dt)
         {
-            var proxy = new UserProxy(u, Users);
-            proxy.PropertyChanged += OnProxyPropertyChanged;
-            proxy.ErrorsChanged += OnProxyErrorsChanged;
-            return proxy;
-        }
+            var now = DateTime.Now;
 
-        private GearProxy BuildProxy(Gear g)
-        {
-            var proxy = new GearProxy(g, Gears);
-            proxy.PropertyChanged += OnProxyPropertyChanged;
-            proxy.ErrorsChanged += OnProxyErrorsChanged;
-            return proxy;
-        }
-
-        private void OnProxyPropertyChanged(object source, PropertyChangedEventArgs args) => SetDirty();
-
-        private void OnProxyErrorsChanged(object source, DataErrorsChangedEventArgs args) => ValidateCommand.NotifyCanExecuteChanged();
-
-        private void UpdateProxiesHistoryStats()
-        {
-            try
+            var borrowingQuery = from borrowing in _Context.Borrowings
+                                 where borrowing.BorrowTime >= dt
+                                 orderby borrowing.BorrowTime
+                                 select borrowing;
+            foreach (var gearHistory in borrowingQuery.AsEnumerable().GroupBy(borrowing => borrowing.GearId))
             {
-                _DirtyWatchingSuspended = true;
-
-                var now = DateTime.Now;
-
-                var borrowingQuery = from borrowing in _Context.Borrowings
-                                     where borrowing.BorrowTime >= StatisticsStartDate
-                                     orderby borrowing.BorrowTime
-                                     select borrowing;
-                foreach(var gearHistory in borrowingQuery.AsEnumerable().GroupBy(borrowing => borrowing.GearId)) 
+                var gearProxy = Gears.FirstOrDefault(e => e.Id == gearHistory.Key);
+                if (gearProxy != null)
                 {
-                    var gearProxy = Gears.FirstOrDefault(e => e.Id == gearHistory.Key);
-                    if (gearProxy != null)
-                    {
-                        gearProxy.UpdateStats(gearHistory, now);
-                    }
-                }
-
-                foreach(var userHistory in borrowingQuery.AsEnumerable().GroupBy(e=>e.UserId)) 
-                {
-                    var userProxy = Users.FirstOrDefault(e=>e.Id == userHistory.Key);
-                    if (userProxy != null) 
-                    {
-                        userProxy.UpdateStats(userHistory, now);
-                    }
+                    gearProxy.UpdateStats(gearHistory, now);
                 }
             }
-            finally
+
+            foreach (var userHistory in borrowingQuery.AsEnumerable().GroupBy(e => e.UserId))
             {
-                _DirtyWatchingSuspended = false;
+                var userProxy = Users.FirstOrDefault(e => e.Id == userHistory.Key);
+                if (userProxy != null)
+                {
+                    userProxy.UpdateStats(userHistory, now);
+                }
             }
         }
     }

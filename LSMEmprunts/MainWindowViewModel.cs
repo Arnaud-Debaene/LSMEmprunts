@@ -1,6 +1,6 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
-using MvvmDialogs;
+﻿using MvvmDialogs;
 using MvvmDialogs.ViewModels;
+using ReactiveUI;
 using System;
 using System.Collections.ObjectModel;
 using System.Windows;
@@ -8,7 +8,7 @@ using System.Windows.Threading;
 
 namespace LSMEmprunts
 {
-    public sealed class MainWindowViewModel : ObservableObject
+    public sealed class MainWindowViewModel : ReactiveObject
     {
         public static MainWindowViewModel Instance { get; } = new MainWindowViewModel();
 
@@ -37,7 +37,7 @@ namespace LSMEmprunts
             set
             {
                 (_CurrentPageViewModel as IDisposable)?.Dispose();
-                SetProperty(ref _CurrentPageViewModel, value);
+                this.RaiseAndSetIfChanged(ref _CurrentPageViewModel, value);
             }
         }
 

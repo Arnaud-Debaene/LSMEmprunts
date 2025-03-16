@@ -23,9 +23,12 @@
 
         <StackPanel Orientation="Vertical" Grid.Row="0" Grid.Column="0" Margin="10">
             <TextBlock Text="Date début" />
-            <xceed:DateTimePicker Width="250" Kind="Local" Value="{Binding FromDateTime}" Format="Custom" FormatString="g"/>
+            <xceed:DateTimePicker Width="250" Kind="Local" Value="{Binding FromDateTime, ValidatesOnNotifyDataErrors=True}" Format="Custom" FormatString="g"
+                                  Validation.ErrorTemplate="{StaticResource ValidationErrorTemplate}"/>
+
             <TextBlock Text=" Date Fin" Margin="0 50 0 0" />
-            <xceed:DateTimePicker Width="250" Kind="Local" Value="{Binding ToDateTime}" Format="Custom" FormatString="g"/>
+            <xceed:DateTimePicker Width="250" Kind="Local" Value="{Binding ToDateTime, ValidatesOnNotifyDataErrors=True}" Format="Custom" FormatString="g"
+                                  Validation.ErrorTemplate="{StaticResource ValidationErrorTemplate}"/>
             <CheckBox Margin="0 100 0 0" VerticalContentAlignment="Center" IsChecked="{Binding InclusivePeriods}">
                 <StackPanel Orientation="Vertical">
                     <TextBlock Text="Emprunts entièrement" />

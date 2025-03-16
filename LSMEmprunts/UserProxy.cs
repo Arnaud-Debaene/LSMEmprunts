@@ -11,7 +11,7 @@ namespace LSMEmprunts
         private readonly IEnumerable<UserProxy> _Collection;
 
         public UserProxy(User data, IEnumerable<UserProxy> collection)
-            : base(data)
+            : base(data, MyValidator.Instance)
         {
             _Collection = collection;
             ValidateAllProperties();
@@ -46,7 +46,7 @@ namespace LSMEmprunts
             StatsBorrowsCount = history.Count();
         }
 
-        private class MyValidator : AbstractValidator<UserProxy>
+        private class MyValidator : FluentWpfValidator<UserProxy>
         {
             private MyValidator() 
             {
@@ -56,7 +56,5 @@ namespace LSMEmprunts
 
             public static MyValidator Instance { get; } = new MyValidator();
         }
-
-        protected override IValidator<UserProxy> Validator => MyValidator.Instance;
     }
 }

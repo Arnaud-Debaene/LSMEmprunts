@@ -1,14 +1,14 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
+﻿using ReactiveUI;
 using System;
+using System.Reactive;
 
 namespace MvvmDialogs.ViewModels
 {
-    public abstract class ModalDialogViewModelBase : ObservableValidator, IUserDialogViewModel
+    public abstract class ModalDialogViewModelBase : ReactiveObject, IUserDialogViewModel
     {
         protected ModalDialogViewModelBase()
         {
-            CloseCommand = new RelayCommand(RequestClose);
+            CloseCommand = ReactiveCommand.Create(RequestClose);
         }
 
         public virtual bool IsModal => true;
@@ -22,6 +22,6 @@ namespace MvvmDialogs.ViewModels
 
         protected bool DialogResult = false;
 
-        public RelayCommand CloseCommand { get; }
+        public ReactiveCommand<Unit, Unit> CloseCommand { get; }
     }
 }

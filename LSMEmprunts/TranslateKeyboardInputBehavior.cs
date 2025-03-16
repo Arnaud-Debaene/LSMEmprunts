@@ -8,7 +8,7 @@ namespace LSMEmprunts
     /// <summary>
     /// WPF behavior to translate QWERTY input of Key.D0 --> Key.D9 to the corresponding '0' --> '9' characters, independently of the keyboard layout
     /// </summary>
-    public class TranslateKeyboardInputBehavior : Behavior<TextBoxBase>
+    public sealed class TranslateKeyboardInputBehavior : Behavior<TextBoxBase>
     {
         private static readonly Dictionary<Key, string> _KeyMapping = new()
         {              

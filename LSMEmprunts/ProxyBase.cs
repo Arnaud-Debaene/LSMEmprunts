@@ -1,10 +1,6 @@
-﻿using FluentValidation;
-using FluentValidation.Results;
-using System;
+﻿using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -17,8 +13,11 @@ namespace LSMEmprunts
     {
         public readonly WrappedType WrappedElt;
 
-        protected ProxyBase(WrappedType inner)
+        private readonly FluentWpfValidator<DerivedType> _Validator;
+
+        protected ProxyBase(WrappedType inner, FluentWpfValidator<DerivedType> validator)
         {
+            _Validator = validator;
             WrappedElt = inner;
             System.Diagnostics.Debug.Assert(this.GetType().IsAssignableTo(typeof(DerivedType)));
         }
@@ -74,68 +73,25 @@ namespace LSMEmprunts
 
         #region INotifyDataErrorInfo implementation
 
-        protected virtual IValidator<DerivedType> Validator { get; } = null;
 
         public event EventHandler<DataErrorsChangedEventArgs> ErrorsChanged;
 
-        public IEnumerable GetErrors(string propertyName)
-        {
-            if (string.IsNullOrEmpty(propertyName))
-            {
-                return null;
-            }
-            if (_ErrorsPerProperty.TryGetValue(propertyName, out List<ValidationFailure> retval))
-            {
-                return retval.Select(e => e.ErrorMessage);
-            }
-            return null;
-        }
+        public IEnumerable GetErrors(string propertyName) => _Validator.GetErrors(propertyName);
 
-        public bool HasErrors => _ErrorsPerProperty.Any(e => e.Value.Count > 0);
-
-        private readonly Dictionary<string, List<ValidationFailure>> _ErrorsPerProperty = new();
+        public bool HasErrors => _Validator.HasErrors;
 
         protected void ValidateAllProperties()
         {
-            var validator = Validator;
-            if (validator != null)
+            var changes = _Validator.ValidateAllProperties((DerivedType)this, out var hasErrorsChanged);
+            if (hasErrorsChanged)
             {
-                var currentErrors = new Dictionary<string, List<ValidationFailure>>(_ErrorsPerProperty);
-                _ErrorsPerProperty.Clear();
-                var validationResult = validator.Validate((DerivedType)this);
-                foreach (var validationErrorsPerProperty in validationResult.Errors.GroupBy(e => e.PropertyName))
-                {
-                    _ErrorsPerProperty.Add(validationErrorsPerProperty.Key, new List<ValidationFailure>(validationErrorsPerProperty));
-                }
-
-                RaiseErrorsChangedIfReallyChanged(currentErrors, _ErrorsPerProperty);
-                RaiseErrorsChangedIfReallyChanged(_ErrorsPerProperty, currentErrors);
+                RaisePropertyChanged(nameof(HasErrors));
+            }
+            foreach(var change in changes)
+            {
+                ErrorsChanged?.Invoke(this, change);
             }
         }
-
-        private void RaiseErrorsChangedIfReallyChanged(Dictionary<string, List<ValidationFailure>> errors1, Dictionary<string, List<ValidationFailure>> errors2)
-        { 
-            foreach((var propName, var errorsPerProps1) in errors1)
-            {
-                if (!errors2.TryGetValue(propName, out var errorsPerProps2))
-                {
-                    RaiseErrorsChanged(propName);
-                }
-                else
-                {
-                    foreach(var error in errorsPerProps1)
-                    {
-                        if (!errorsPerProps2.Any(e=>e.ErrorMessage == error.ErrorMessage))
-                        {
-                            RaiseErrorsChanged(propName);
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        private void RaiseErrorsChanged(string propertyName) => ErrorsChanged?.Invoke(this, new DataErrorsChangedEventArgs(propertyName));
         #endregion
 
         #region IEditableObject implementation
