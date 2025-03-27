@@ -1,5 +1,6 @@
 ﻿using DynamicData.Binding;
 using LSMEmprunts.Data;
+using Microsoft.EntityFrameworkCore;
 using ReactiveUI;
 using System;
 using System.Collections;
@@ -249,14 +250,15 @@ namespace LSMEmprunts
                 State = BorrowingState.Open
             }));
             await _Context.SaveChangesAsync();
+            await _Context.Database.ExecuteSqlRawAsync($"NOTIFY {nameof(Borrowing)}");
 
             GoBackToHomeView();
         }
 
         public ICommand CancelCommand { get; }
-        private void GoBackToHomeView()
+        private async void GoBackToHomeView()
         {
-            MainWindowViewModel.Instance.CurrentPageViewModel = new HomeViewModel();
+            await MainWindowViewModel.Instance.SetCurrentPage(new HomeViewModel());
         }
 
         private IDisposable _AutoValidateTickerSubscription;

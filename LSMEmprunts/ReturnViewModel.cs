@@ -118,16 +118,17 @@ namespace LSMEmprunts
         }
 
         public ICommand ValidateCommand { get; }
-        private void ValidateCmd()
+        private async void ValidateCmd()
         {
-            _Context.SaveChanges();
+            await _Context.SaveChangesAsync();
+            await _Context.Database.ExecuteSqlRawAsync($"NOTIFY {nameof(Borrowing)}");
             GoBackToHomeView();
         }
 
         public ICommand CancelCommand { get; }
-        private void GoBackToHomeView()
+        private async void GoBackToHomeView()
         {
-            MainWindowViewModel.Instance.CurrentPageViewModel = new HomeViewModel();
+            await MainWindowViewModel.Instance.SetCurrentPage(new HomeViewModel());
         }
 
         public ReactiveCommand<GearReturnInfo, Unit> SelectGearCommand { get; }

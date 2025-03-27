@@ -3,6 +3,7 @@ using MvvmDialogs.ViewModels;
 using ReactiveUI;
 using System;
 using System.Collections.ObjectModel;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 
@@ -14,7 +15,7 @@ namespace LSMEmprunts
 
         private MainWindowViewModel()
         {
-            CurrentPageViewModel = new HomeViewModel();
+            SetCurrentPage(new HomeViewModel()).Wait();
 
             Application.Current.DispatcherUnhandledException += OnUnhandledException;
         }
@@ -30,15 +31,21 @@ namespace LSMEmprunts
             Dialogs.Add(vm);
         }
 
-        private object _CurrentPageViewModel;
-        public object CurrentPageViewModel
+        private ReactiveObject _CurrentPageViewModel;
+        public ReactiveObject CurrentPageViewModel => _CurrentPageViewModel;
+
+        public async Task SetCurrentPage(ReactiveObject viewModel)
         {
-            get => _CurrentPageViewModel;
-            set
+            if (_CurrentPageViewModel is IAsyncDisposable asyncDisposable)
             {
-                (_CurrentPageViewModel as IDisposable)?.Dispose();
-                this.RaiseAndSetIfChanged(ref _CurrentPageViewModel, value);
+                await asyncDisposable.DisposeAsync();
             }
+            else if (_CurrentPageViewModel is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+
+            this.RaiseAndSetIfChanged(ref _CurrentPageViewModel, viewModel, nameof(CurrentPageViewModel));
         }
 
         public ObservableCollection<IDialogViewModel> Dialogs { get; } = new ObservableCollection<IDialogViewModel>();

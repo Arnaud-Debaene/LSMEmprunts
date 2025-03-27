@@ -91,7 +91,7 @@ namespace LSMEmprunts
 
         public ICommand CancelCommand { get; }
 
-        private void GoBackToHomeView() => MainWindowViewModel.Instance.CurrentPageViewModel = new HomeViewModel();
+        private async void GoBackToHomeView() => await MainWindowViewModel.Instance.SetCurrentPage(new HomeViewModel());
 
         public ICommand ShowBorrowOnPeriodCommand { get; }
 
