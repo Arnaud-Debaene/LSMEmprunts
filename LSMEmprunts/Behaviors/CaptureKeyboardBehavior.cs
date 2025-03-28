@@ -6,6 +6,12 @@ using System.Windows.Threading;
 
 namespace LSMEmprunts
 {
+    /// <summary>
+    /// A behavior to capture the keyboard input on the associated object as long as the Active dependency property is true
+    /// </summary>
+    /// <remarks>
+    /// Focus is not really captured. Rather, whenever the associated object looses the focus, a timer is started that will refocus it after a short time.
+    /// </remarks>
     public sealed class CaptureKeyboardBehavior : Behavior<FrameworkElement>
     {
         private readonly DispatcherTimer _RefocusTimer =new();

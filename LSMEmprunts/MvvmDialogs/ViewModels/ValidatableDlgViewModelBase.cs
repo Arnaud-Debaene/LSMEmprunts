@@ -1,12 +1,18 @@
 ﻿using System;
 using System.Collections;
 using System.ComponentModel;
-using System.Linq;
 using MvvmDialogs.ViewModels;
 using ReactiveUI;
 
 namespace LSMEmprunts
 {
+    /// <summary>
+    /// Base class for the view model of a modal dialog that supports validation (and implement INotifyDataErrorInfo)
+    /// </summary>
+    /// <typeparam name="DerivedType">the derived type</typeparam>
+    /// <remarks>
+    /// The real implementation of INotifyDataErrorInfo is provided by _Validator. The public members that implement INotifyDataErrorInfo simply call it
+    /// </remarks>
     public abstract class ValidatableDlgViewModelBase<DerivedType> : ModalDialogViewModelBase, INotifyDataErrorInfo
         where DerivedType : ValidatableDlgViewModelBase<DerivedType>
     {
@@ -15,7 +21,7 @@ namespace LSMEmprunts
         protected ValidatableDlgViewModelBase(FluentWpfValidator<DerivedType> validator) 
         {
             _Validator = validator;
-            Changed.Subscribe(_ => HandlePropertyChanged());
+            Changed.Subscribe(_ => HandlePropertyChanged()); //whenver a property changes, run the validation
         }
 
 
@@ -23,9 +29,9 @@ namespace LSMEmprunts
 
         public event EventHandler<DataErrorsChangedEventArgs> ErrorsChanged;
 
-        public bool HasErrors => _Validator?.HasErrors ?? false;
+        public bool HasErrors => _Validator.HasErrors;
 
-        public IEnumerable GetErrors(string propertyName) => _Validator?.GetErrors(propertyName) ?? Enumerable.Empty<string>();
+        public IEnumerable GetErrors(string propertyName) => _Validator.GetErrors(propertyName);
 
         private void HandlePropertyChanged()
         {
