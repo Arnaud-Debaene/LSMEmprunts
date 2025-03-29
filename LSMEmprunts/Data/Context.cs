@@ -22,7 +22,7 @@ namespace LSMEmprunts.Data
         }
     }
 
-    public class ContextesignTimeFactory : IDesignTimeDbContextFactory<Context>
+    public class ContextDesignTimeFactory : IDesignTimeDbContextFactory<Context>
     {
         public Context CreateDbContext(string[] args)
         {

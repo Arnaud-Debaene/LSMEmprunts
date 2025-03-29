@@ -24,14 +24,6 @@ namespace LSMEmprunts
             var retval = new Context(_ContextOptions);
             return retval;
         }
-
-        public static NpgsqlConnection OpenConnection()
-        {
-            var retval = new NpgsqlConnection(ConnectionString);
-            retval.Open();
-            return retval;
-        }
-
         private static string ConnectionString => ConfigurationManager.ConnectionStrings["LSMEmprunts"].ConnectionString;
     }
 }

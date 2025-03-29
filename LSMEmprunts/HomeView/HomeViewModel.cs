@@ -4,9 +4,11 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using ReactiveUI;
 using System;
+using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -26,10 +28,6 @@ namespace LSMEmprunts
 
             //start to listen for DB notifications
             _NotificationWaitTask = Task.Run(ListenDbNotificationsAsync);
-
-            //fill the ActiveBorrowings collection with current borrowings
-            RefreshBorrowings();
-
         }
 
         #region listen for DB notifications about borrowings changes
@@ -46,43 +44,37 @@ namespace LSMEmprunts
 
 
         /// <summary>
-        /// loop to listen for DB notifications
+        /// loop to listen for DB notifications and update ActiveBorrowings
         /// </summary>
         private async Task ListenDbNotificationsAsync()
         {
-            using var connection = ContextFactory.OpenConnection();
+            using var context = ContextFactory.OpenContext();
+            await context.Database.OpenConnectionAsync();
+            var connection = context.Database.GetDbConnection() as NpgsqlConnection;
 
-            //configure handling of Notification events
-            var notifications = Observable.FromEventPattern<NotificationEventHandler, NpgsqlNotificationEventArgs>
-                (h => connection.Notification += h, h => connection.Notification -= h);
-            var subscription = notifications.Select(e => e.EventArgs).ObserveOn(Application.Current.Dispatcher)
-                .Subscribe(evt =>
-                {
-                    if (string.Compare(evt.Channel, nameof(Borrowing), StringComparison.InvariantCultureIgnoreCase) == 0)
-                    {
-                        RefreshBorrowings();
-                    }
-                });
+            //register for notifications with the postgres DB
+            await context.Database.ExecuteSqlRawAsync($"LISTEN {nameof(Borrowing)}");
 
-            //the LISTEN command shall be run within a transaction (see postgres documentation)
-            using (var transaction = connection.BeginTransaction())
-            {
-                using var command = connection.CreateCommand();
-                command.CommandText = $"LISTEN {nameof(Borrowing)}";
-                await command.ExecuteNonQueryAsync();
-                transaction.Commit();
-            }
+            IEnumerable<Borrowing> ReadBorrowings() => context.Borrowings.Include(e => e.User).Include(e => e.Gear)
+                    .Where(e => e.State == BorrowingState.Open)
+                    .OrderBy(e => e.BorrowTime)
+                    .ToList();
+
+            // create an observable of IEnumerable<Borrowing>
+            Subject<IEnumerable<Borrowing>> observableBorrowings = new();
+            //observe this obsevable to refresh ActiveBorrowings
+            using var subscription = observableBorrowings.ObserveOn(Application.Current.Dispatcher)
+                .Subscribe(borrowings => ActiveBorrowings.Load(borrowings));
 
             while (true)
             {
                 try
                 {
-                    await connection.WaitAsync(_NotificationWaitCts.Token).ConfigureAwait(false);
+                    observableBorrowings.OnNext(ReadBorrowings());  //read the current content of Borrowing tables and push it on the observable
+                    await connection.WaitAsync(_NotificationWaitCts.Token); //wait for notification of postgres                    
                 }
                 catch (OperationCanceledException)
                 {
-                    subscription.Dispose();
-                    await connection.CloseAsync();
                     break;
                 }
             }
@@ -119,14 +111,5 @@ namespace LSMEmprunts
                 await MainWindowViewModel.Instance.SetCurrentPage(new SettingsViewModel());
             }
         }
-
-        private void RefreshBorrowings()
-        {
-            using var context = ContextFactory.OpenContext();
-            ActiveBorrowings.Load(context.Borrowings.Include(e => e.User).Include(e => e.Gear)
-                    .Where(e => e.State == BorrowingState.Open)
-                    .OrderBy(e => e.BorrowTime));
-        }
-
     }
 }
