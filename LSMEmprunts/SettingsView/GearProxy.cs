@@ -22,10 +22,7 @@ namespace LSMEmprunts
         public string Name
         {
             get => WrappedElt.Name;
-            set
-            {
-                SetProperty(e => e.Name, value);
-            }
+            set => SetProperty(e => e.Name, value);
         }
 
         public GearType Type
@@ -37,10 +34,7 @@ namespace LSMEmprunts
         public string BarCode
         {
             get => WrappedElt.BarCode;
-            set
-            {
-                SetProperty(e => e.BarCode, value);
-            }
+            set => SetProperty(e => e.BarCode, value);
         }
 
         public string Size
@@ -53,14 +47,14 @@ namespace LSMEmprunts
         public TimeSpan StatsBorrowsDuration
         {
             get => _StatsBorrowsDuration;
-            private set => SetProperty(ref _StatsBorrowsDuration, value);
+            private set => SetProperty(ref _StatsBorrowsDuration, value, false, false);
         }
 
         private int _StatsBorrowsCount;
         public int StatsBorrowsCount
         {
             get => _StatsBorrowsCount;
-            private set => SetProperty(ref _StatsBorrowsCount , value);
+            private set => SetProperty(ref _StatsBorrowsCount , value, false, false);
         }
 
         internal void UpdateStats(IEnumerable<Borrowing> history, DateTime now)

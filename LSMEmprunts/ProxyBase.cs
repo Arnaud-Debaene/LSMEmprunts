@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reactive.Subjects;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
@@ -11,7 +12,8 @@ namespace LSMEmprunts
 {
     /// <summary>
     /// an MVVM proxy around a business object (typically a DB entity) that provides
-    /// - INotfyPropertyChanged implementation
+    /// - INotifyPropertyChanged implementation
+    /// - "IsDirty" observable
     /// - Validation of the edited object (throug a FluentValidator)
     /// - IEditableObject implementation to support commit / rollback of changes made to the object
     /// </summary>
@@ -35,7 +37,7 @@ namespace LSMEmprunts
         #region INotifyPropertyChanged implementation
         public event PropertyChangedEventHandler PropertyChanged;
 
-        protected bool SetProperty<T>(Expression<Func<WrappedType, T>> selector, T value, bool validate= true, [CallerMemberName] string propertyName = null)
+        protected bool SetProperty<T>(Expression<Func<WrappedType, T>> selector, T value, bool validate= true, bool set_dirty = true, [CallerMemberName] string propertyName = null)
         {
             var propertyInfo = GetMemberFromExpression(selector);
 
@@ -47,6 +49,10 @@ namespace LSMEmprunts
 
             propertyInfo.SetValue(WrappedElt, value);
             RaisePropertyChanged(propertyName);
+            if (set_dirty)
+            {
+                SetDirty();
+            }
             if (validate)
             {
                 ValidateAllProperties();
@@ -54,12 +60,16 @@ namespace LSMEmprunts
             return true;
         }
 
-        protected bool SetProperty<T>(ref T backingField, T value, bool validate = true, [CallerMemberName] string propertyName = null)
+        protected bool SetProperty<T>(ref T backingField, T value, bool validate = true, bool set_dirty=true, [CallerMemberName] string propertyName = null)
         {
             if (!Equals(backingField, value))
             {
                 backingField = value;
                 RaisePropertyChanged(propertyName);
+                if (set_dirty)
+                {
+                    SetDirty();
+                }
                 if (validate)
                 {
                     ValidateAllProperties();
@@ -70,6 +80,21 @@ namespace LSMEmprunts
         }
 
         private void RaisePropertyChanged(string propertyName) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        #endregion
+
+        #region IsDirty handling
+        private bool _IsDirty = false;
+        public bool IsDirty => _IsDirty;
+
+        private void SetDirty()
+        {
+            if (!_IsDirty)
+            {
+                _IsDirty = true;
+                RaisePropertyChanged(nameof(IsDirty));
+            }
+        }
+
         #endregion
 
         #region INotifyDataErrorInfo implementation

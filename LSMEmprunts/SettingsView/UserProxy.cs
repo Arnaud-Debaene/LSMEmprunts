@@ -38,7 +38,7 @@ namespace LSMEmprunts
         public int StatsBorrowsCount
         {
             get => _StatsBorrowsCount;
-            private set => SetProperty(ref _StatsBorrowsCount, value);
+            private set => SetProperty(ref _StatsBorrowsCount, value, false, false);
         }
 
         internal void UpdateStats(IEnumerable<Borrowing> history, DateTime now)

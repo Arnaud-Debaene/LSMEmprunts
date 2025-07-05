@@ -26,8 +26,13 @@ namespace LSMEmprunts
 
             var gearsHasErrorsObservable = gearsObervableChangeSet.AutoRefresh(gear => gear.HasErrors).ToCollection().Select(x => x.Any(y => y.HasErrors));
             var usersHasErrorsObservable = usersObervableChangeSet.AutoRefresh(user => user.HasErrors).ToCollection().Select(x => x.Any(y => y.HasErrors));
-            var hasErrorsObervable = gearsHasErrorsObservable.Merge(usersHasErrorsObservable);
-            _HasErrors = hasErrorsObervable.ToProperty(this, x => x.HasErrors);
+            //HasErrors property is true whenever any gear or user has its own HasErrors=true
+            _HasErrors = gearsHasErrorsObservable.Merge(usersHasErrorsObservable).ToProperty(this, x => x.HasErrors);
+
+            var gearsHasIsDirtyObservable = gearsObervableChangeSet.AutoRefresh(gear=>gear.IsDirty).ToCollection().Select(x=>x.Any(y => y.IsDirty));
+            var usersHasIsDirtyObservable = usersObervableChangeSet.AutoRefresh(gear => gear.IsDirty).ToCollection().Select(x => x.Any(y => y.IsDirty));
+            //set IsDirty flag whenever one user or gear is itself dirty
+            gearsHasIsDirtyObservable.Merge(usersHasIsDirtyObservable).Where(x => x).Subscribe(_ => IsDirty = true);
 
             var canValidate = this.WhenAnyValue(x => x.IsDirty, x => x.HasErrors, (dirty, hasError) => {
                 return dirty && !hasError;
@@ -60,8 +65,8 @@ namespace LSMEmprunts
             //UpdateProxiesHistoryStats();
             this.WhenAnyValue(x => x.StatisticsStartDate).Subscribe(x => UpdateProxiesHistoryStats(x));
 
-            //set IsDirty flag whenever gear OR users change
-            gearsObervableChangeSet.Subscribe(_ => IsDirty =true);
+            //set IsDirty flag whenever gear OR users collection change (adding/removing elements)
+            gearsObervableChangeSet.Subscribe(_ => IsDirty = true);
             usersObervableChangeSet.Subscribe(_ => IsDirty = true);
             IsDirty = false;
         }
@@ -126,7 +131,6 @@ namespace LSMEmprunts
         {
             _Context.Users.Remove(u.WrappedElt);
             Users.Remove(u);
-            IsDirty = true;
         }
 
         public ReactiveCommand<UserProxy, Unit> UserHistoryCommand { get; }
@@ -176,7 +180,6 @@ namespace LSMEmprunts
         {
             _Context.Gears.Remove(g.WrappedElt);
             Gears.Remove(g);
-            IsDirty = true;
         }
 
         public ReactiveCommand<GearProxy, Unit> GearHistoryCommand { get; }
