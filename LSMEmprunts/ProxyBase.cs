@@ -86,7 +86,7 @@ namespace LSMEmprunts
         private bool _IsDirty = false;
         public bool IsDirty => _IsDirty;
 
-        private void SetDirty()
+        internal void SetDirty()
         {
             if (!_IsDirty)
             {

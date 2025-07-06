@@ -21,22 +21,34 @@ namespace LSMEmprunts
 
         public SettingsViewModel()
         {
+            #region load data
+            _Context = ContextFactory.OpenContext();
+            Users.AddRange(_Context.Users.AsEnumerable().Select(u => BuildProxy(u)));
+            Gears.AddRange(_Context.Gears.AsEnumerable().Select(g => BuildProxy(g)));
+            #endregion
+
+            #region setup commands
             var gearsObervableChangeSet = Gears.ToObservableChangeSet(x => x.Id);
             var usersObervableChangeSet = Users.ToObservableChangeSet(x => x.Id);
+            var oneCollectionHasChangedObservable = Observable.Return(false) //initial state of the observable : no changes have occured to the collections
+                .Concat(gearsObervableChangeSet.Skip(1).Select(_ => true))   //note that ToObservableChangeSet() emits the initial state of the collection as its 1st changeset, so we need to skip it
+                .Concat(usersObervableChangeSet.Skip(1).Select(_ => true));
 
             var gearsHasErrorsObservable = gearsObervableChangeSet.AutoRefresh(gear => gear.HasErrors).ToCollection().Select(x => x.Any(y => y.HasErrors));
             var usersHasErrorsObservable = usersObervableChangeSet.AutoRefresh(user => user.HasErrors).ToCollection().Select(x => x.Any(y => y.HasErrors));
-            //HasErrors property is true whenever any gear or user has its own HasErrors=true
-            _HasErrors = gearsHasErrorsObservable.Merge(usersHasErrorsObservable).ToProperty(this, x => x.HasErrors);
 
             var gearsHasIsDirtyObservable = gearsObervableChangeSet.AutoRefresh(gear=>gear.IsDirty).ToCollection().Select(x=>x.Any(y => y.IsDirty));
             var usersHasIsDirtyObservable = usersObervableChangeSet.AutoRefresh(gear => gear.IsDirty).ToCollection().Select(x => x.Any(y => y.IsDirty));
-            //set IsDirty flag whenever one user or gear is itself dirty
-            gearsHasIsDirtyObservable.Merge(usersHasIsDirtyObservable).Where(x => x).Subscribe(_ => IsDirty = true);
 
-            var canValidate = this.WhenAnyValue(x => x.IsDirty, x => x.HasErrors, (dirty, hasError) => {
-                return dirty && !hasError;
-                });            
+            /*the validate command is active when :
+             * - there is no error in eithr users nor gears
+             * - either one of the collections (gear/user) has changed, or one gear or user itself has set itself to dirty
+             */
+            var canValidate = from hasError in gearsHasErrorsObservable.Merge(usersHasErrorsObservable)
+                              from isDirty in gearsHasIsDirtyObservable.Merge(usersHasIsDirtyObservable)
+                              from oneCollectionHasChanged in oneCollectionHasChangedObservable
+                              select (oneCollectionHasChanged || isDirty) && !hasError;
+
             ValidateCommand = ReactiveCommand.Create(ValidateCmd, canValidate);
             CancelCommand = ReactiveCommand.Create(GoBackToHomeView);
             ShowBorrowOnPeriodCommand = ReactiveCommand.Create(ShowBorrowOnPeriod);
@@ -50,25 +62,11 @@ namespace LSMEmprunts
             DeleteUserCommand = ReactiveCommand.Create<UserProxy>(DeleteUser);
             UserHistoryCommand = ReactiveCommand.Create<UserProxy>(ShowUserHistory);
             UsersCsvCommand = ReactiveCommand.Create(UsersCsv);
+            #endregion
 
-            _Context = ContextFactory.OpenContext();
-
-            foreach (var user in _Context.Users)
-            {
-                Users.Add(BuildProxy(user));
-            }
-            foreach (var gear in _Context.Gears)
-            {
-                Gears.Add(BuildProxy(gear));
-            }
-
-            //UpdateProxiesHistoryStats();
+            #region handle properties changes
             this.WhenAnyValue(x => x.StatisticsStartDate).Subscribe(x => UpdateProxiesHistoryStats(x));
-
-            //set IsDirty flag whenever gear OR users collection change (adding/removing elements)
-            gearsObervableChangeSet.Subscribe(_ => IsDirty = true);
-            usersObervableChangeSet.Subscribe(_ => IsDirty = true);
-            IsDirty = false;
+            #endregion
         }
 
         public void Dispose()
@@ -86,8 +84,9 @@ namespace LSMEmprunts
             set => this.RaiseAndSetIfChanged(ref _StatisticsStartDate, value);
         }
 
-        public ICommand ValidateCommand { get; }
+        #region commands
 
+        public ICommand ValidateCommand { get; }
         private void ValidateCmd()
         {
             _Context.SaveChanges();
@@ -95,29 +94,16 @@ namespace LSMEmprunts
         }
 
         public ICommand CancelCommand { get; }
-
         private async void GoBackToHomeView() => await MainWindowViewModel.Instance.SetCurrentPage(new HomeViewModel());
 
         public ICommand ShowBorrowOnPeriodCommand { get; }
-
         private void ShowBorrowOnPeriod()
         {
             var vm = new BorrowOnPeriodViewModel(_Context);
             MainWindowViewModel.Instance.Dialogs.Add(vm);
         }
 
-        private bool _IsDirty = false;
-        public bool IsDirty
-        {
-            get => _IsDirty;
-            private set => this.RaiseAndSetIfChanged(ref _IsDirty, value);
-        }
-
-        private readonly ObservableAsPropertyHelper<bool> _HasErrors;
-        public bool HasErrors => _HasErrors.Value;
-
         public ICommand CreateUserCommand { get; }
-
         private void CreateUser()
         {
             var user = new User();
@@ -126,7 +112,6 @@ namespace LSMEmprunts
         }
 
         public ReactiveCommand<UserProxy, Unit> DeleteUserCommand { get; }
-
         private void DeleteUser(UserProxy u)
         {
             _Context.Users.Remove(u.WrappedElt);
@@ -134,19 +119,17 @@ namespace LSMEmprunts
         }
 
         public ReactiveCommand<UserProxy, Unit> UserHistoryCommand { get; }
-
         private async void ShowUserHistory(UserProxy u)
         {
             var vm = new UserHistoryDlgViewModel(u.WrappedElt, _Context);
             MainWindowViewModel.Instance.Dialogs.Add(vm);
             if (await vm.HasModifiedData)
             {
-                IsDirty = true;
+                u.SetDirty();  //the user has logically changed
             }
         }
 
         public ICommand UsersCsvCommand { get; }
-
         private async void UsersCsv()
         {
             var vm = new SaveFileDialogViewModel
@@ -166,7 +149,6 @@ namespace LSMEmprunts
         }
 
         public ICommand CreateGearCommand { get; }
-
         private void CreateGear()
         {
             var gear = new Gear();
@@ -175,7 +157,6 @@ namespace LSMEmprunts
         }
 
         public ReactiveCommand<GearProxy, Unit> DeleteGearCommand { get; }
-
         private void DeleteGear(GearProxy g)
         {
             _Context.Gears.Remove(g.WrappedElt);
@@ -183,19 +164,17 @@ namespace LSMEmprunts
         }
 
         public ReactiveCommand<GearProxy, Unit> GearHistoryCommand { get; }
-
         private async void ShowGearHistory(GearProxy g)
         {
             var vm = new GearHistoryDlgViewModel(g.WrappedElt, _Context);
             MainWindowViewModel.Instance.Dialogs.Add(vm);
             if (await vm.HasModifiedData)
             {
-                IsDirty = true;
+                g.SetDirty();  //the gear has logically changed
             }
         }
 
         public ICommand GearsCsvCommand { get; }
-
         private async void GearsCsv()
         {
             var vm = new SaveFileDialogViewModel
@@ -214,11 +193,11 @@ namespace LSMEmprunts
                 }
             }
         }
+        #endregion
 
         private UserProxy BuildProxy(User u) => new(u, Users);
 
         private GearProxy BuildProxy(Gear g) => new(g, Gears);
-
 
         private void UpdateProxiesHistoryStats(DateTime dt)
         {
