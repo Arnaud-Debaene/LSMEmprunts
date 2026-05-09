@@ -1,27 +1,29 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
+﻿using ReactiveUI;
+using ReactiveMarbles.ObservableEvents;
+using System;
+using System.Reactive.Disposables.Fluent;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
 namespace LSMEmprunts
 {
     /// <summary>
     /// Interaction logic for PasswordDlg.xaml
     /// </summary>
-    public partial class PasswordDlg : Window
+    public partial class PasswordDlg : ReactiveUserControl<PasswordDlgViewModel>
     {
         public PasswordDlg()
         {
             InitializeComponent();
+            this.WhenActivated(disposables =>
+            {
+                this.BindCommand(ViewModel, x => x.OkCommand, x => x.OkBtn).DisposeWith(disposables);
+                this.BindCommand(ViewModel, x => x.CancelCommand, x => x.CancelBtn).DisposeWith(disposables);
+                
+                this.PasswordBox.Events().PasswordChanged.Subscribe(_ => ViewModel.Password = PasswordBox.Password).DisposeWith(disposables);
+
+                PasswordBox.Focus();
+
+            });
         }
     }
 }

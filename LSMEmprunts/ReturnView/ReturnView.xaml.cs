@@ -1,28 +1,35 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+﻿using LSMEmprunts.Behaviors;
+using LSMEmprunts.Dialogs;
+using ReactiveUI;
+using Splat;
+using System.Reactive.Disposables.Fluent;
 
 namespace LSMEmprunts
 {
     /// <summary>
     /// Interaction logic for ReturnView.xaml
     /// </summary>
-    public partial class ReturnView : UserControl
+    public partial class ReturnView : ReactiveUserControl<ReturnViewModel>
     {
         public ReturnView()
         {
             InitializeComponent();
+            this.WhenActivated(disposables =>
+            {
+                DataContext = ViewModel;
+
+                this.BindCommand(ViewModel, x => x.CancelCommand, x => x.CancelBtn).DisposeWith(disposables);
+                this.BindCommand(ViewModel, x => x.ValidateCommand, x => x.ValidateBtn).DisposeWith(disposables);
+
+                this.Bind(ViewModel, x => x.Gears, x => x.GearsList.ItemsSource).DisposeWith(disposables);
+                this.Bind(ViewModel, x => x.ClosingBorrowings, x => x.ClosingBorrowingsList.ItemsSource).DisposeWith(disposables);
+                this.Bind(ViewModel, x => x.SelectedGearId, x => x.SelectedGearIdTextBox.Text).DisposeWith(disposables);
+                this.Bind(ViewModel, x => x.AutoValidateTicker.RemainingTime, x => x.RemainingTimeTextBlock.Text).DisposeWith(disposables);
+
+                Locator.Current.GetService<IDialogManager>().RegisterInteraction(ViewModel.ShowWarningDialog);
+
+                SelectedGearIdTextBox.ConfigureRfidInput(disposables);
+            });
         }
     }
 }

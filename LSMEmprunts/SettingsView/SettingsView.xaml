@@ -1,23 +1,20 @@
-﻿<UserControl x:Class="LSMEmprunts.SettingsView"
+﻿<rxui:ReactiveUserControl x:Class="LSMEmprunts.SettingsView" x:TypeArguments="local:SettingsViewModel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:rxui="http://reactiveui.net"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
              xmlns:local="clr-namespace:LSMEmprunts"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:SettingsViewModel}"
              d:DesignHeight="600" d:DesignWidth="600">
 
-    <UserControl.Resources>
-        <Style x:Key="ErrorStyle" TargetType="TextBox">
-            <Setter Property="Padding" Value="-2" />
-            <Style.Triggers>
-                <Trigger Property="Validation.HasError" Value="true">
-                    <Setter Property="Background" Value="Red" />
-                    <Setter Property="ToolTip"
-                            Value="{Binding RelativeSource={RelativeSource Self}, Path=(Validation.Errors)[0].ErrorContent}" />
-                </Trigger>
-            </Style.Triggers>
+    <FrameworkElement.Resources>
+        <Style x:Key="EditableCellStyle" TargetType="local:EditableCell">
+            <Setter Property="local:GridViewEx.HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="local:GridViewEx.VerticalContentAlignment" Value="Stretch"/>
+            <Setter Property="Validation.ErrorTemplate" Value="{StaticResource ValidationErrorTemplate}" />
         </Style>
 
         <local:GearSizeTemplateSelector x:Key="SizeTemplateSelector">
@@ -37,7 +34,7 @@
         </local:GearSizeTemplateSelector>
 
         <local:DurationConverter x:Key="DurationConverter" />
-    </UserControl.Resources>
+    </FrameworkElement.Resources>
 
     <Grid x:Name="Root">
         <Grid.RowDefinitions>
@@ -60,45 +57,70 @@
                 <RowDefinition Height="auto" />
             </Grid.RowDefinitions>
             <TextBlock HorizontalAlignment="Center" Margin="10" FontSize="36">Utilisateurs</TextBlock>
-            <DataGrid Grid.Row="1" AutoGenerateColumns="False" ItemsSource="{Binding Users}" 
-                      CanUserAddRows="False" CanUserDeleteRows="False" CanUserReorderColumns="False">
-                <DataGrid.RowValidationErrorTemplate>
-                    <ControlTemplate />
-                </DataGrid.RowValidationErrorTemplate>
-                <DataGrid.Columns>
-                    <DataGridTemplateColumn>
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate DataType="{x:Type local:UserProxy}">
-                                <Button 
-                                    Command="{Binding ElementName=Root, Path=DataContext.UserHistoryCommand}"
-                                    CommandParameter="{Binding }" Width="30"
-                                    Background="{StaticResource HistoryIcon}" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="Nom" EditingElementStyle="{StaticResource ErrorStyle}"
-                                        Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
-                    <DataGridTextColumn Header="Téléphone" Binding="{Binding Phone, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}"/>
-                    <DataGridTextColumn Header="# Emprunts" IsReadOnly="true" Binding="{Binding StatsBorrowsCount}" />
-                    <DataGridTemplateColumn>
-                        <DataGridTemplateColumn.CellTemplate >
-                            <DataTemplate DataType="{x:Type local:UserProxy}">
-                                <Button 
-                                    Command="{Binding ElementName=Root, Path=DataContext.DeleteUserCommand}"
-                                    CommandParameter="{Binding }" Width="30"
-                                    Background="{StaticResource DeleteIcon}"/>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                </DataGrid.Columns>
-            </DataGrid>
+            <ListView x:Name="UsersGrid" Grid.Row="1">
+                <i:Interaction.Behaviors>
+                    <local:GridViewColumnSortBehavior/>
+                </i:Interaction.Behaviors>
+                
+                <ListView.View>
+                    <GridView AllowsColumnReorder="False">
+                        <GridViewColumn Header="Nom" Width="290" local:GridViewColumnSortBehavior.Sort="Name">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <local:EditableCell Style="{StaticResource EditableCellStyle}" ColumnKey="Name" 
+                                                        DisplayContent="{Binding Name, TargetNullValue={x:Static Member=sys:String.Empty}}">
+                                        <local:EditableCell.EditorTemplate>
+                                            <DataTemplate DataType="{x:Type local:UserProxy}">
+                                                <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}"  />
+                                            </DataTemplate>
+                                        </local:EditableCell.EditorTemplate>
+                                    </local:EditableCell>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="Téléphone" Width="150" local:GridViewColumnSortBehavior.Sort="Phone">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <local:EditableCell Style="{StaticResource EditableCellStyle}" ColumnKey="Phone" DisplayContent="{Binding Phone, TargetNullValue={x:Static Member=sys:String.Empty}}">
+                                        <local:EditableCell.EditorTemplate>
+                                            <DataTemplate DataType="{x:Type local:UserProxy}">
+                                                <TextBox Text="{Binding Phone, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
+                                            </DataTemplate>
+                                        </local:EditableCell.EditorTemplate>
+                                    </local:EditableCell>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="# Emprunts" DisplayMemberBinding="{Binding StatsBorrowsCount}" Width="120"/>
+                        <GridViewColumn local:GridViewColumnSortBehavior.AllowSort="False">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate DataType="{x:Type local:UserProxy}">
+                                    <Button Validation.ErrorTemplate="{x:Null}"
+                                        Command="{Binding ElementName=Root, Path=DataContext.UserHistoryCommand}"
+                                        CommandParameter="{Binding }" Width="30" Height="30"
+                                        Background="{StaticResource HistoryIcon}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn local:GridViewColumnSortBehavior.AllowSort="False">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate DataType="{x:Type local:UserProxy}">
+                                    <Button Validation.ErrorTemplate="{x:Null}"
+                                        Command="{Binding ElementName=Root, Path=DataContext.DeleteUserCommand}"
+                                        CommandParameter="{Binding }" Width="30" Height="30"
+                                        Background="{StaticResource DeleteIcon}"/>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+            
             <StackPanel Grid.Row="2" HorizontalAlignment="Center" Orientation="Horizontal">
-                <Button Margin="5" Background="Transparent"
-                        Command="{Binding CreateUserCommand}" >
+                <Button x:Name="CreateUserBtn" Margin="5" Background="Transparent">
                     <Rectangle Width="30" Height="30" Margin="5" Fill="{DynamicResource AddIcon}" />
                 </Button>
-                <Button Margin="5" Background="Transparent"
-                        Command="{Binding UsersCsvCommand}">
+                <Button x:Name="UsersCsvBtn" Margin="5" Background="Transparent">
                     <Rectangle Width="30" Height="30" Margin="5" Fill="{DynamicResource CsvIcon}" />
                 </Button>
             </StackPanel>
@@ -111,64 +133,104 @@
                 <RowDefinition Height="auto" />
             </Grid.RowDefinitions>
             <TextBlock HorizontalAlignment="Center" Margin="10" FontSize="36">Matériel</TextBlock>
-            <DataGrid Grid.Row="1" AutoGenerateColumns="False" ItemsSource="{Binding Gears}" CanUserAddRows="False">
-                <DataGrid.RowValidationErrorTemplate>
-                    <ControlTemplate />
-                </DataGrid.RowValidationErrorTemplate>
-                <DataGrid.Columns>
-                    <DataGridTemplateColumn>
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate DataType="{x:Type local:GearProxy}">
-                                <Button 
-                                    Command="{Binding ElementName=Root, Path=DataContext.GearHistoryCommand}"
-                                    CommandParameter="{Binding }" Width="30"
-                                    Background="{StaticResource HistoryIcon}" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridComboBoxColumn Header="Type" 
-                                            SelectedItemBinding="{Binding Type, Converter={StaticResource GearTypeConverter}}" 
-                                            ItemsSource="{Binding Source={StaticResource GearTypeEnum}, Converter={StaticResource GearTypeConverter}}" />
-                    <DataGridTextColumn Header="Nom" EditingElementStyle="{StaticResource ErrorStyle}"
-                                        Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
-                    <DataGridTemplateColumn Header="Code barre">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate DataType="{x:Type local:GearProxy}">
-                                <TextBlock Text="{Binding BarCode, ValidatesOnNotifyDataErrors=True}" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                        <DataGridTemplateColumn.CellEditingTemplate>
-                            <DataTemplate DataType="{x:Type local:GearProxy}">
-                                <TextBox Text="{Binding BarCode, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" Style="{StaticResource ErrorStyle}">
-                                    <i:Interaction.Behaviors>
-                                        <local:TranslateKeyboardInputBehavior />
-                                    </i:Interaction.Behaviors>
-                                </TextBox>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellEditingTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="Taille" CellTemplateSelector="{StaticResource SizeTemplateSelector}" />
-                    <DataGridTextColumn Header="# Emprunts" IsReadOnly="true" Binding="{Binding StatsBorrowsCount}" />
-                    <DataGridTextColumn Header="Σ Durée emprunts" IsReadOnly="true" Binding="{Binding StatsBorrowsDuration, Converter={StaticResource DurationConverter}}" />
-                    <DataGridTemplateColumn>
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate DataType="{x:Type local:GearProxy}">
-                                <Button
-                                    Command="{Binding ElementName=Root, Path=DataContext.DeleteGearCommand}"
-                                    CommandParameter="{Binding }" Width="30"
-                                    Background="{StaticResource DeleteIcon}"/>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                </DataGrid.Columns>
-            </DataGrid>
+            <ListView x:Name="GearsGrid"  Grid.Row="1">
+                <i:Interaction.Behaviors>
+                    <local:GridViewColumnSortBehavior/>
+                </i:Interaction.Behaviors>
+
+                <ListView.View>
+                    <GridView AllowsColumnReorder="False">
+                        <GridViewColumn Header="Type" Width="120" local:GridViewColumnSortBehavior.Sort="Type">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <local:EditableCell Style="{StaticResource EditableCellStyle}" ColumnKey="Type" 
+                                                        DisplayContent="{Binding Type, Converter={StaticResource GearTypeConverter}}"
+                                                        ClickOutsideEndEndition="False">
+                                        <local:EditableCell.EditorTemplate>
+                                            <DataTemplate DataType="{x:Type local:GearProxy}">
+                                                <ComboBox SelectedItem="{Binding Type, Converter={StaticResource GearTypeConverter}}" 
+                                                          ItemsSource="{Binding Source={StaticResource GearTypeEnum}, Converter={StaticResource GearTypeConverter}}" />
+                                            </DataTemplate>
+                                        </local:EditableCell.EditorTemplate>
+                                    </local:EditableCell>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+
+                        <GridViewColumn Header="Nom" Width="150" local:GridViewColumnSortBehavior.Sort="Name">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <local:EditableCell Style="{StaticResource EditableCellStyle}" ColumnKey="Name" 
+                                                        DisplayContent="{Binding Name, TargetNullValue={x:Static Member=sys:String.Empty}}">
+                                        <local:EditableCell.EditorTemplate>
+                                            <DataTemplate DataType="{x:Type local:GearProxy}">
+                                                <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
+                                            </DataTemplate>
+                                        </local:EditableCell.EditorTemplate>
+                                    </local:EditableCell>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+
+                        <GridViewColumn Header="Code Barre" Width="160" local:GridViewColumnSortBehavior.Sort="BarCode">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <local:EditableCell Style="{StaticResource EditableCellStyle}" ColumnKey="BarCode"
+                                                        DisplayContent="{Binding BarCode, TargetNullValue={x:Static Member=sys:String.Empty}}">
+                                        <local:EditableCell.EditorTemplate>
+                                            <DataTemplate DataType="{x:Type local:GearProxy}">
+                                                <local:GearIdEditor ViewModel="{Binding }"/>                                                
+                                            </DataTemplate>
+                                        </local:EditableCell.EditorTemplate>
+                                    </local:EditableCell>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+
+                        <GridViewColumn Header="Taille" Width="100" local:GridViewColumnSortBehavior.AllowSort="False">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <local:EditableCell Style="{StaticResource EditableCellStyle}" ColumnKey="Size" DisplayContent="{Binding Size}"
+                                                        EditorTemplateSelector="{StaticResource SizeTemplateSelector}" 
+                                                        ClickOutsideEndEndition="False"/>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+
+                        <GridViewColumn Header="# Emprunts" Width="100" DisplayMemberBinding="{Binding StatsBorrowsCount}" />
+
+                        <GridViewColumn Header="Σ Durée emprunts" Width="100" DisplayMemberBinding="{Binding StatsBorrowsDuration, Converter={StaticResource DurationConverter}}" />
+
+                        <GridViewColumn local:GridViewColumnSortBehavior.AllowSort="False">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate DataType="{x:Type local:GearProxy}">
+                                    <Button Validation.ErrorTemplate="{x:Null}"
+                                            Command="{Binding ElementName=Root, Path=DataContext.GearHistoryCommand}"
+                                            CommandParameter="{Binding }" Width="30" Height="30"
+                                            Background="{StaticResource HistoryIcon}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn local:GridViewColumnSortBehavior.AllowSort="False">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate DataType="{x:Type local:GearProxy}">
+                                    <Button Validation.ErrorTemplate="{x:Null}"
+                                            Command="{Binding ElementName=Root, Path=DataContext.DeleteGearCommand}"
+                                            CommandParameter="{Binding }" Width="30" Height="30"
+                                            Background="{StaticResource DeleteIcon}"/>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+
+                    </GridView>
+                </ListView.View>
+            </ListView>            
+            
             <StackPanel Grid.Row="2" HorizontalAlignment="Center" Orientation="Horizontal">
-                <Button  Margin="5"
-                    Background="Transparent" Command="{Binding CreateGearCommand}">
+                <Button x:Name="CreateGearBtn" Margin="5" Background="Transparent" >
                     <Rectangle Width="30" Height="30" Margin="5" Fill="{DynamicResource AddIcon}" />
                 </Button>
-                <Button Margin="5" Background="Transparent"
-                        Command="{Binding GearsCsvCommand}">
+                <Button x:Name="GearsCsvBtn" Margin="5" Background="Transparent">
                     <Rectangle Width="30" Height="30" Margin="5" Fill="{DynamicResource CsvIcon}" />
                 </Button>                
             </StackPanel>
@@ -176,21 +238,21 @@
 
         <StackPanel Orientation="Vertical" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center">
             <TextBlock Text="Date de début des statistiques d'emprunt" HorizontalAlignment="Center" />
-            <DatePicker Width="150" Margin="2" SelectedDate="{Binding StatisticsStartDate, Mode=TwoWay}" />
+            <DatePicker x:Name="StatisticsStartDatePicker" Width="150" Margin="2" />
         </StackPanel>
 
         <StackPanel Grid.Column="2" Grid.Row="1" HorizontalAlignment="Right" Orientation="Horizontal" Margin="0,5,0,-5">
-            <Button Command="{Binding ShowBorrowOnPeriodCommand}" Margin="5 5 30 5">
+            <Button x:Name="ShowBorrowOnPeriodBtn" Margin="5 5 30 5">
                 <Rectangle Width="70" Height="70" Margin="5" Fill="{StaticResource HistoryIcon}"/>
             </Button>
             
-            <Button Command="{Binding ValidateCommand}" Margin="5">
+            <Button x:Name="ValidateBtn" Margin="5">
                 <Rectangle Width="70" Height="70" Margin="5" Fill="{StaticResource CheckIcon}"/>
             </Button>
-            <Button Command="{Binding CancelCommand}" Margin="5">
+            <Button x:Name="CancelBtn" Margin="5">
                 <Rectangle Width="70" Height="70" Margin="5" Fill="{StaticResource CancelIcon}"/>
             </Button>
         </StackPanel>
 
     </Grid>
-</UserControl>
+</rxui:ReactiveUserControl>

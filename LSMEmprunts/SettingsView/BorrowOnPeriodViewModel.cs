@@ -1,27 +1,24 @@
-﻿using System;
-using DynamicData.Binding;
+﻿using DynamicData.Binding;
+using FluentValidation;
 using LSMEmprunts.Data;
-using MvvmDialogs;
+using LSMEmprunts.Dialogs;
 using ReactiveUI;
+using Splat;
+using System;
 using System.IO;
 using System.Linq;
+using System.Reactive;
+using System.Reactive.Linq;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Input;
-using FluentValidation;
 
 namespace LSMEmprunts
 {
-    public sealed class BorrowInfo
-    {
-        public string User { get; set; }
-        public GearType GearType { get; set; }
-        public string Gear { get; set; }
-        public DateTime FromDate { get; set; }
-        public DateTime? ToDate { get; set; }
-    }
+    public sealed record BorrowInfo(string User, GearType GearType, string Gear, DateTime FromDate, DateTime? ToDate);
 
-    public class BorrowOnPeriodViewModel : ValidatableDlgViewModelBase<BorrowOnPeriodViewModel>
+    public class BorrowOnPeriodViewModel : ValidatableDlgViewModelBase<BorrowOnPeriodViewModel, Unit>
     {
         private readonly Context _Context;
 
@@ -32,15 +29,15 @@ namespace LSMEmprunts
 
             ExportCsvCommand = ReactiveCommand.Create(ExportCsv);
 
-            var now = DateTime.Now;
-            _ToDateTime = new DateTime(now.Year, now.Month, now.Day, 0, 0, 0, DateTimeKind.Local);
+            var now = DateTime.UtcNow;
+            _ToDateTime = new DateTime(now.Year, now.Month, now.Day, 0, 0, 0, DateTimeKind.Utc);
             _FromDateTime = ToDateTime - TimeSpan.FromDays(7);
 
             this.WhenAnyValue(x => x.FromDateTime, x => x.ToDateTime, x => x.InclusivePeriods)
                 .Subscribe(((DateTime from, DateTime to, bool inclusive) t) => FillBorrows(t.from, t.to , t.inclusive));
         }
 
-        private class MyValidator : FluentWpfValidator<BorrowOnPeriodViewModel>
+        private class MyValidator : AbstractValidator<BorrowOnPeriodViewModel>
         {
             private MyValidator()
             {
@@ -84,21 +81,13 @@ namespace LSMEmprunts
 
         private void FillBorrows(DateTime from, DateTime to, bool inclusive)
         {
-            System.Diagnostics.Debug.WriteLine("FillBorrows");
             Borrows.Clear();
             if (from< to)
             {
                 IQueryable<BorrowInfo> query;
                 if (inclusive)
                 {
-                    query = _Context.Borrowings.Where(e => e.BorrowTime >= FromDateTime && e.ReturnTime <= ToDateTime).Select(e => new BorrowInfo
-                    {
-                        FromDate = e.BorrowTime,
-                        ToDate = e.ReturnTime,
-                        User = e.User.Name,
-                        Gear = e.Gear.Name,
-                        GearType = e.Gear.Type,
-                    });
+                    query = _Context.Borrowings.Where(e => e.BorrowTime >= FromDateTime && e.ReturnTime <= ToDateTime).Select(e => new BorrowInfo(e.User.Name, e.Gear.Type, e.Gear.Name, e.BorrowTime, e.ReturnTime));
                 }
                 else
                 {
@@ -106,14 +95,7 @@ namespace LSMEmprunts
                     (e.BorrowTime < FromDateTime && e.ReturnTime > FromDateTime && e.ReturnTime <= ToDateTime) ||
                     (e.BorrowTime >= FromDateTime && e.BorrowTime < ToDateTime && e.ReturnTime > ToDateTime) ||
                     (e.BorrowTime >= FromDateTime && e.ReturnTime <= ToDateTime))
-                        .Select(e => new BorrowInfo
-                        {
-                            FromDate = e.BorrowTime,
-                            ToDate = e.ReturnTime,
-                            User = e.User.Name,
-                            Gear = e.Gear.Name,
-                            GearType = e.Gear.Type,
-                        });
+                        .Select(e => new BorrowInfo(e.User.Name, e.Gear.Type, e.Gear.Name, e.BorrowTime, e.ReturnTime));
                 }
 
                 Borrows.AddRange(query);
@@ -123,14 +105,13 @@ namespace LSMEmprunts
         #region Commands
         public ICommand ExportCsvCommand { get; }
 
-        private async void ExportCsv()
+        private async Task ExportCsv()
         {
             var vm = new SaveFileDialogViewModel
             {
                 Filter = "(*.csv)|*.csv"
             };
-            MainWindowViewModel.Instance.Dialogs.Add(vm);
-            if (await vm.Completion)
+            if (await Locator.Current.GetService<IDialogManager>().SaveFile.Handle(vm))
             {
                 using var writer = new StreamWriter(vm.FileName, false, Encoding.UTF8);
                 writer.WriteLine("Nom;Type;Matériel;Date d'emprunt;Date de retour");

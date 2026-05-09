@@ -1,37 +1,25 @@
-﻿using MvvmDialogs.ViewModels;
+﻿using System;
+using LSMEmprunts.Dialogs;
 using ReactiveUI;
-using System.Reactive;
-using System.Threading.Tasks;
-using System.Windows.Controls;
+using ReactiveUI.SourceGenerators;
 using System.Windows.Input;
 
 namespace LSMEmprunts
 {
-    public sealed class PasswordDlgViewModel : ModalDialogViewModelBase
+    public sealed partial class PasswordDlgViewModel : ModalDialogViewModelBase<string>
     {
-        private readonly TaskCompletionSource<string> _ResultTask = new TaskCompletionSource<string>();
-        public Task<string> Result => _ResultTask.Task;
-
         public PasswordDlgViewModel()
         {
-            OkCommand = ReactiveCommand.Create<PasswordBox>(OnOk);
-            CancelCommand = ReactiveCommand.Create(OnCancel);
+            OkCommand = ReactiveCommand.Create(() => CloseCommand.Execute(Password).Subscribe());
+            CancelCommand = ReactiveCommand.Create(() => CloseCommand.Execute(null).Subscribe());
         }
 
-        public ReactiveCommand<PasswordBox, Unit> OkCommand { get; }
-
-        public void OnOk(PasswordBox box)
-        {
-            RequestClose();
-            _ResultTask.SetResult(box.Password);
-        }
-
+        public ICommand OkCommand { get; }
         public ICommand CancelCommand { get; }
 
-        public void OnCancel()
-        {
-            RequestClose();
-            _ResultTask.SetResult(null);
-        }
+        [Reactive]
+        private string _Password;
+
+        
     }
 }

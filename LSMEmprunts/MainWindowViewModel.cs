@@ -1,23 +1,23 @@
-﻿using MvvmDialogs;
-using MvvmDialogs.ViewModels;
+﻿using LSMEmprunts.Dialogs;
 using ReactiveUI;
+using Splat;
 using System;
-using System.Collections.ObjectModel;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 
 namespace LSMEmprunts
 {
-    public sealed class MainWindowViewModel : ReactiveObject
+    public sealed class MainWindowViewModel : ReactiveObject, IScreen
     {
-        public static MainWindowViewModel Instance { get; } = new MainWindowViewModel();
+        public RoutingState Router { get; } = new();
+        
 
-        private MainWindowViewModel()
+        public MainWindowViewModel()
         {
-            SetCurrentPage(new HomeViewModel()).Wait();
-
             Application.Current.DispatcherUnhandledException += OnUnhandledException;
+
+            // Navigate to the first page
+            Router.Navigate.Execute(new HomeViewModel(this)).Subscribe();
         }
 
         private void OnUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
@@ -28,26 +28,8 @@ namespace LSMEmprunts
                 Buttons = MessageBoxButton.OK,
                 Message = e.Exception.CompleteDump()
             };
-            Dialogs.Add(vm);
+            Locator.Current.GetService<IDialogManager>().MessageBox.Handle(vm);
         }
 
-        private ReactiveObject _CurrentPageViewModel;
-        public ReactiveObject CurrentPageViewModel => _CurrentPageViewModel;
-
-        public async Task SetCurrentPage(ReactiveObject viewModel)
-        {
-            if (_CurrentPageViewModel is IAsyncDisposable asyncDisposable)
-            {
-                await asyncDisposable.DisposeAsync();
-            }
-            else if (_CurrentPageViewModel is IDisposable disposable)
-            {
-                disposable.Dispose();
-            }
-
-            this.RaiseAndSetIfChanged(ref _CurrentPageViewModel, viewModel, nameof(CurrentPageViewModel));
-        }
-
-        public ObservableCollection<IDialogViewModel> Dialogs { get; } = new ObservableCollection<IDialogViewModel>();
     }
 }

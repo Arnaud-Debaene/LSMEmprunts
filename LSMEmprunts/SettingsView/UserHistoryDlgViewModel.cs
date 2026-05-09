@@ -1,19 +1,16 @@
 ﻿using LSMEmprunts.Data;
+using LSMEmprunts.Dialogs;
 using Microsoft.EntityFrameworkCore;
-using MvvmDialogs.ViewModels;
 using ReactiveUI;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Threading.Tasks;
+using System.Reactive;
 using System.Windows.Input;
 
 namespace LSMEmprunts
 {
-    internal sealed class UserHistoryDlgViewModel : ModalDialogViewModelBase
+    public sealed class UserHistoryDlgViewModel : ModalDialogViewModelBase<Unit>
     {
-        private readonly TaskCompletionSource<bool> _ResultTask = new TaskCompletionSource<bool>();
-        public Task<bool> HasModifiedData => _ResultTask.Task;
-
         private readonly Context _Context;
 
         public ObservableCollection<Borrowing> Borrowings { get; }
@@ -38,15 +35,9 @@ namespace LSMEmprunts
         {
             _Context.Borrowings.RemoveRange(Borrowings);
             Borrowings.Clear();
-            _HasModifiedData = true;
+            HasModifiedData = true;
         }
 
-        private bool _HasModifiedData = false;
-
-        public override void RequestClose()
-        {
-            _ResultTask.SetResult(_HasModifiedData);
-            base.RequestClose();
-        }
+        public bool HasModifiedData { get; private set; } = false;
     }
 }

@@ -1,11 +1,16 @@
-﻿using FluentValidation;
+﻿using DynamicData;
+using FluentValidation;
 using LSMEmprunts.Data;
+using LSMEmprunts.EditableGridView;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace LSMEmprunts
 {
+    /// <summary>
+    /// An MVVM friendly wrapper around a Gear, for edition in the Settings view
+    /// </summary>
     public class GearProxy : ProxyBase<Gear, GearProxy>
     {
         private readonly IEnumerable<GearProxy> _Collection;
@@ -77,7 +82,7 @@ namespace LSMEmprunts
             string.Empty, "Enfant", "XXS", "XS", "S", "M", "L", "XL", "XXL"
         };
 
-        private class MyValidator : FluentWpfValidator<GearProxy>
+        private class MyValidator : AbstractValidator<GearProxy>
         {
             private MyValidator()
             {
@@ -94,5 +99,39 @@ namespace LSMEmprunts
 
             public static MyValidator Instance { get; } = new();
         }
+    }
+
+    /// <summary>
+    /// ViewModel for the list of available Gears in the Settings view
+    /// </summary>
+    public class GearsListViewModel : GridHostViewModel<GearProxy>
+    {
+        public GearsListViewModel(IEnumerable<Gear> gears)
+        {
+            var proxies = gears.Select(g => BuildProxy(g));
+            _Items.AddRange(proxies);
+        }
+
+        public void Add(Gear gear) => _Items.Add(BuildProxy(gear));
+
+        public void Remove(GearProxy gear)
+        {
+            _Items.Remove(gear);
+            ValidateAll();
+        }
+
+        override protected void OnCommitEdit() => ValidateAll();
+
+        protected override void OnCancelEdit() => ValidateAll();
+
+        private void ValidateAll()
+        {
+            foreach (var item in Items)
+            {
+                item.ValidateAllProperties();
+            }
+        }
+
+        private GearProxy BuildProxy(Gear g) => new(g, Items);
     }
 }

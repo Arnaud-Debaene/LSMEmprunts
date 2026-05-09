@@ -1,5 +1,6 @@
-﻿<UserControl x:Class="LSMEmprunts.ReturnView"
+﻿<rxui:ReactiveUserControl x:Class="LSMEmprunts.ReturnView" x:TypeArguments="local:ReturnViewModel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:rxui="http://reactiveui.net"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -29,52 +30,50 @@
             </Grid.RowDefinitions>
                 
             <TextBlock Grid.Row="0">Scannez le matériel ou double cliquez dessus</TextBlock>
-            <TextBox Grid.Row="1" Text="{Binding SelectedGearId, UpdateSourceTrigger=PropertyChanged}">
+            <TextBox x:Name="SelectedGearIdTextBox" Grid.Row="1">
                 <i:Interaction.Behaviors>
-                    <local:BindOnEnterBehavior />
                     <local:CaptureKeyboardBehavior />
-                    <local:TranslateKeyboardInputBehavior />
-                    <local:OnlyNumbersAllowedBehavior />
                 </i:Interaction.Behaviors>
             </TextBox>
-            <ListBox Grid.Row="2" ItemsSource="{Binding Gears}" Margin="0,10,0,5" HorizontalContentAlignment="Stretch" >
+            <ListBox x:Name="GearsList" Grid.Row="2" Margin="0,10,0,5" HorizontalContentAlignment="Stretch" >
                 <ListBox.ItemTemplate>
                     <DataTemplate DataType="{x:Type local:GearReturnInfo}">
-                        <Grid>
-                            <TextBlock Text="{Binding Name}" FontWeight="{Binding Borrowed, Converter={StaticResource BoolToBoldConverter}}"/>
+                        <TextBlock Text="{Binding Name}" FontWeight="{Binding Borrowed, Converter={StaticResource BoolToBoldConverter}}">
                             <UIElement.InputBindings>
                                 <MouseBinding Gesture="LeftDoubleClick" 
                                               Command="{Binding RelativeSource={RelativeSource AncestorType=ListBox}, Path=DataContext.SelectGearCommand}"
                                               CommandParameter="{Binding }"/>
-                            </UIElement.InputBindings>
-                        </Grid>
+                            </UIElement.InputBindings>    
+                            </TextBlock>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
                     
             </ListBox>
         </Grid>
 
-        <DataGrid Grid.Column="2" IsReadOnly="True" Margin="10"
-                  AutoGenerateColumns="False" ItemsSource="{Binding ClosingBorrowings}">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="Nom" Binding="{Binding Borrowing.Gear.Name}" />
-                <DataGridTextColumn Header="Type" Binding="{Binding Borrowing.Gear.Type, Converter={StaticResource GearTypeConverter}}" />
-                <DataGridTextColumn Header="Remarque" Binding="{Binding Comment}" />
-            </DataGrid.Columns>
-        </DataGrid>
-        
+        <ListView x:Name="ClosingBorrowingsList" Grid.Column="2" Margin="10">
+            <i:Interaction.Behaviors>
+                <local:GridViewColumnSortBehavior/>
+            </i:Interaction.Behaviors>
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="Nom" DisplayMemberBinding="{Binding Borrowing.Gear.Name}" Width="200"/>
+                    <GridViewColumn Header="Type" DisplayMemberBinding="{Binding Borrowing.Gear.Type, Converter={StaticResource GearTypeConverter}}" Width="150"/>
+                    <GridViewColumn Header="Remarque" DisplayMemberBinding="{Binding Comment}" Width="200"/>
+                </GridView>
+            </ListView.View>
+        </ListView>
+
         <StackPanel Orientation="Horizontal" Grid.Row="1" Grid.Column="3" HorizontalAlignment="Right">
-            <Button HorizontalAlignment="Center" Command="{Binding ValidateCommand}" Margin="5">
+            <Button x:Name="ValidateBtn" HorizontalAlignment="Center" Margin="5">
                 <Grid Width="70" Height="70" Margin="5" Background="{StaticResource CheckIcon}">
-                    <TextBlock VerticalAlignment="Center" HorizontalAlignment="Center" Text="{Binding AutoValidateTicker.RemainingTime}" />
+                    <TextBlock x:Name="RemainingTimeTextBlock" VerticalAlignment="Center" HorizontalAlignment="Center" />
                 </Grid>
             </Button>
-            <Button HorizontalAlignment="Center" Command="{Binding CancelCommand}" Margin="5">
+            <Button x:Name="CancelBtn" HorizontalAlignment="Center" Margin="5">
                 <Rectangle Width="70" Height="70" Margin="5" Fill="{StaticResource CancelIcon}"/>
             </Button>
         </StackPanel>
-
         
-    </Grid>
-    
-</UserControl>
+    </Grid>    
+</rxui:ReactiveUserControl>

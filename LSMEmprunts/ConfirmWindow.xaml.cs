@@ -1,27 +1,23 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
+﻿using ReactiveUI;
+using System.Reactive.Disposables.Fluent;
 
 namespace LSMEmprunts
 {
     /// <summary>
     /// Interaction logic for ConfirmWindow.xaml
     /// </summary>
-    public partial class ConfirmWindow : Window
+    public partial class ConfirmWindow : ReactiveUserControl<ConfirmWindowViewModel>
     {
         public ConfirmWindow()
         {
             InitializeComponent();
+
+            this.WhenActivated(disposables =>
+            {
+                this.BindCommand(ViewModel, x=>x.OkCommand, x=>x.ConfirmBtn).DisposeWith(disposables);
+                this.BindCommand(ViewModel, x=>x.CancelCommand, x=>x.CloseBtn).DisposeWith(disposables);
+                this.Bind(ViewModel, x=>x.Message, x=>x.MessageTextBlock.Text).DisposeWith(disposables);
+            });
         }
     }
 }

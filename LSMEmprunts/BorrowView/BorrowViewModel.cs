@@ -1,7 +1,10 @@
 ﻿using DynamicData.Binding;
 using LSMEmprunts.Data;
+using LSMEmprunts.Dialogs;
 using Microsoft.EntityFrameworkCore;
 using ReactiveUI;
+using ReactiveUI.SourceGenerators;
+using Splat;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -70,8 +73,11 @@ namespace LSMEmprunts
         }
     }
 
-    public sealed class BorrowViewModel : ReactiveObject, IDisposable
+    public sealed partial class BorrowViewModel : ReactiveObject, IDisposable, IRoutableViewModel
     {
+        public string UrlPathSegment => "borrow";
+        public IScreen HostScreen { get; }
+
         private readonly Context _Context;
 
         private readonly ObservableCollection<User> _UsersList;
@@ -79,19 +85,14 @@ namespace LSMEmprunts
         public ICollectionView Users { get; }
         public ICollectionView Gears { get; }
 
-
-        private User _CurrentUser;
         /// <summary>
         /// this property is bound to the current selection in the users listbox
         /// </summary>
-        public User CurrentUser
-        {
-            get => _CurrentUser;
-            set => this.RaiseAndSetIfChanged(ref _CurrentUser, value);
-        }
+        [Reactive]
+        private User _CurrentUser;
 
-        private readonly ObservableAsPropertyHelper<bool> _UserSelected;
-        public bool UserSelected => _UserSelected.Value;
+        [ObservableAsProperty]
+        private bool _UserSelected;
 
         private void SetSelectedUser(User user)
         {
@@ -104,17 +105,23 @@ namespace LSMEmprunts
             StartOrResetValidateTicker();
         }       
 
-        public BorrowViewModel()
+        public BorrowViewModel(IScreen screen)
         {
+            HostScreen = screen;
+
             _Context = ContextFactory.OpenContext();
 
             var hasBorrowedGears = BorrowedGears.ToObservableChangeSet().Select(_ => BorrowedGears.Any());
-            ValidateCommand = ReactiveCommand.Create(ValidateCmd, hasBorrowedGears);
-            CancelCommand = ReactiveCommand.Create(GoBackToHomeView);
-            SelectGearCommand = ReactiveCommand.Create<GearBorrowInfo>(SelectGearCmd);
+            ValidateCommand = ReactiveCommand.CreateFromTask(async() =>
+            {
+                await SaveData();
+                await GoBackToHomeViewAsync();
+            }, hasBorrowedGears);
+            CancelCommand = ReactiveCommand.CreateFromTask(GoBackToHomeViewAsync);
+            SelectGearCommand = ReactiveCommand.CreateFromTask<GearBorrowInfo>(async(info) => await SelectGearToBorrowAsync(info.Gear));
 
             //configuration of UserSelected computed property
-            _UserSelected = this.ObservableForProperty(x => x.CurrentUser, user => user != null).ToProperty(this, x => x.UserSelected);
+            _UserSelectedHelper = this.ObservableForProperty(x => x.CurrentUser, user => user != null).ToProperty(this, nameof(UserSelected));
 
             //configuration of GearTextBoxShallRetainFocus computed property
             _GearTextBoxShallRetainFocus = this.WhenAnyValue(x => x.CurrentUser, x => x.CommentTextBoxFocused, (user, commentSelected) => user != null && !commentSelected)
@@ -132,11 +139,13 @@ namespace LSMEmprunts
             };
             Users.SortDescriptions.Add(new SortDescription(nameof(User.Name), ListSortDirection.Ascending));
 
+            //load all gears with an additional "Available" property to know if they are currently available for borrowing or not (not currently borrowed)
             var gears = (from gear in _Context.Gears
                          let borrowed = gear.Borrowings.Any(e => e.State == BorrowingState.Open)
-                         select new GearBorrowInfo { Gear = gear, Available = !borrowed }).OrderByDescending(e => e.Available)
-                .ToList();
+                         select new GearBorrowInfo { Gear = gear, Available = !borrowed }).AsEnumerable()
+                         .OrderByDescending(e => e.Available).ThenBy(e => e.Name).ToList();
 
+            //create a collection view to be able to filter out gears that are in the process of being borrowed (in BorrowedGears)
             Gears = CollectionViewSource.GetDefaultView(gears);
             ((ListCollectionView)Gears).CustomSort = new GearComparer();
             Gears.Filter = (item) =>
@@ -151,7 +160,7 @@ namespace LSMEmprunts
 
             this.WhenAnyValue(e => e.SelectedUserText).Subscribe(x => HandleSelectedUserTextChange(x));
 
-            this.WhenAnyValue(e=>e.SelectedGearId).Subscribe(async (x) => await AnalyzeSelectedGearId(x));
+            this.WhenAnyValue(e=>e.SelectedGearId).Subscribe(async (x) => await AnalyzeSelectedGearIdAsync(x));
         }
 
         public void Dispose()
@@ -160,13 +169,20 @@ namespace LSMEmprunts
             _Context.Dispose();
         }
 
-        private string _SelectedUserText;
-        public string SelectedUserText
+        private async Task GoBackToHomeViewAsync()
         {
-            get => _SelectedUserText;
-            set => this.RaiseAndSetIfChanged(ref _SelectedUserText, value);           
+            Dispose();
+            await HostScreen.Router.NavigateBack.Execute();
         }
 
+        [Reactive]
+        private string _SelectedUserText;
+
+
+        /// <summary>
+        /// Handle changes of the text in the user selection text box. 
+        /// We try to find a single matching user by name and select it if found, so that the user needs only to type a few characters of his name to select himself.
+        /// </summary>
         private void HandleSelectedUserTextChange(string value)
         {
             Users.Refresh();
@@ -178,25 +194,21 @@ namespace LSMEmprunts
             }
         }
 
-        private readonly List<Borrowing> _BorrowingsToForceClose = new List<Borrowing>();
+        private readonly List<Borrowing> _BorrowingsToForceClose = [];
 
-        public ObservableCollection<Gear> BorrowedGears { get; } = new ObservableCollection<Gear>();
+        public ObservableCollection<Gear> BorrowedGears { get; } = [];
 
+        [Reactive]
         private string _Comment;
-        public string Comment
-        {
-            get => _Comment;
-            set => this.RaiseAndSetIfChanged(ref _Comment, value);
-        }
 
+        [Reactive]
         private string _SelectedGearId;
-        public string SelectedGearId
-        {
-            get => _SelectedGearId;
-            set => this.RaiseAndSetIfChanged(ref _SelectedGearId, value);
-        }
 
-        private async Task AnalyzeSelectedGearId(string value)
+        /// <summary>
+        /// Handle changes of the text in the selected gear text box. This text box is used to input either the name or the barcode of a gear,
+        /// so that a user can quickly select a gear by scanning it or by typing its name.
+        /// </summary>
+        private async Task AnalyzeSelectedGearIdAsync(string value)
         {
             if (string.IsNullOrEmpty(value))
             {
@@ -204,7 +216,7 @@ namespace LSMEmprunts
             }
 
             var valueLower = value.ToLower();
-            var matchingGear = _Context.Gears.FirstOrDefault(e => e.Name.ToLower() == valueLower);
+            var matchingGear = await _Context.Gears.FirstOrDefaultAsync(e => e.Name.ToLower() == valueLower);
 
             if (matchingGear != null)
             {
@@ -212,7 +224,7 @@ namespace LSMEmprunts
             }
             else
             {
-                matchingGear = _Context.Gears.FirstOrDefault(e => e.BarCode == value);
+                matchingGear = await _Context.Gears.FirstOrDefaultAsync(e => e.BarCode == value);
                 if (matchingGear != null)
                 {
                     System.Diagnostics.Debug.WriteLine("Found matching gear by scan");
@@ -221,17 +233,17 @@ namespace LSMEmprunts
 
             if (matchingGear != null)
             {
-                await SelectGearToBorrow(matchingGear);
+                await SelectGearToBorrowAsync(matchingGear);
                 SelectedGearId = string.Empty;
             }
         }
 
         public ICommand ValidateCommand { get; }
-        private async void ValidateCmd()
+        private async Task SaveData()
         {
             _AutoValidateTickerSubscription?.Dispose();
 
-            var date = DateTime.Now;
+            var date = DateTime.UtcNow;
 
             foreach (var existingBorrowing in _BorrowingsToForceClose)
             {
@@ -251,30 +263,21 @@ namespace LSMEmprunts
             }));
             await _Context.SaveChangesAsync();
             await _Context.Database.ExecuteSqlRawAsync($"NOTIFY {nameof(Borrowing)}");
-
-            GoBackToHomeView();
         }
 
         public ICommand CancelCommand { get; }
-        private async void GoBackToHomeView()
-        {
-            await MainWindowViewModel.Instance.SetCurrentPage(new HomeViewModel());
-        }
+
 
         private IDisposable _AutoValidateTickerSubscription;
 
+        [Reactive]
         private CountDownTicker _AutoValidateTicker;
-        public CountDownTicker AutoValidateTicker
-        {
-            get => _AutoValidateTicker;
-            set => this.RaiseAndSetIfChanged(ref _AutoValidateTicker, value);
-        }
 
         private void StartOrResetValidateTicker()
         {
             if (AutoValidateTicker == null && CurrentUser != null)
             {
-                AutoValidateTicker = new CountDownTicker(60);
+                AutoValidateTicker = new CountDownTicker(120);
                 _AutoValidateTickerSubscription = AutoValidateTicker.Tick.InvokeCommand(this, x => x.ValidateCommand);
             }
             else
@@ -284,28 +287,23 @@ namespace LSMEmprunts
         }
 
         public ReactiveCommand<GearBorrowInfo, Unit> SelectGearCommand { get; }
-        public async void SelectGearCmd(GearBorrowInfo info)
-        {
-            await SelectGearToBorrow(info.Gear);
-        }
 
-        private async Task SelectGearToBorrow(Gear gear)
+        private async Task SelectGearToBorrowAsync(Gear gear)
         {
             //check for double input of a given gear
             if (BorrowedGears.Contains(gear))
             {
                 var vm = new WarningWindowViewModel("Matériel déjà emprunté");
-                MainWindowViewModel.Instance.Dialogs.Add(vm);
+                //MainWindowViewModel.Instance.Dialogs.Add(vm);
                 return;
             }
 
             //try to find a still open borrowing of the same gear - force close it if found
-            var existingBorrowing = _Context.Borrowings.FirstOrDefault(e => e.GearId == gear.Id && e.State == BorrowingState.Open);
+            var existingBorrowing = await _Context.Borrowings.FirstOrDefaultAsync(e => e.GearId == gear.Id && e.State == BorrowingState.Open);
             if (existingBorrowing != null)
             {
                 var confirmDlg = new ConfirmWindowViewModel("Ce matériel est déjà noté comme emprunté. L'emprunt en cours sera fermé. Etes vous sûr(e)?");
-                MainWindowViewModel.Instance.Dialogs.Add(confirmDlg);
-                if (await confirmDlg.Result == false)
+                if (await Locator.Current.GetService<IDialogManager>().ConfirmWindow.Handle(confirmDlg) == false)
                 {
                     return;
                 }
@@ -339,7 +337,7 @@ namespace LSMEmprunts
         /// We capture the keyboard:
         /// - once a user has been selected
         /// - and NOT when the user is inputing comment text
-        /// </remarks>
+        /// </remarks>     
         private readonly ObservableAsPropertyHelper<bool> _GearTextBoxShallRetainFocus;
         public bool GearTextBoxShallRetainFocus => _GearTextBoxShallRetainFocus.Value;
         #endregion

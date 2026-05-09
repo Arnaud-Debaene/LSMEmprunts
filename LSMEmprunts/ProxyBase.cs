@@ -1,42 +1,62 @@
-﻿using System;
+﻿using FluentValidation;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Linq;
 using System.Linq.Expressions;
-using System.Reactive.Subjects;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
 namespace LSMEmprunts
 {
     /// <summary>
-    /// an MVVM proxy around a business object (typically a DB entity) that provides
+    /// base class for an MVVM proxy around a business object (typically a DB entity) that provides
     /// - INotifyPropertyChanged implementation
     /// - "IsDirty" observable
     /// - Validation of the edited object (throug a FluentValidator)
     /// - IEditableObject implementation to support commit / rollback of changes made to the object
     /// </summary>
-    /// <typeparam name="WrappedType">The type of twrapped entity</typeparam>
+    /// <typeparam name="WrappedType">The type of the wrapped entity</typeparam>
     /// <typeparam name="DerivedType">the derived class</typeparam>
-    public abstract class ProxyBase<WrappedType, DerivedType> : INotifyPropertyChanged, INotifyDataErrorInfo, IEditableObject
+    public abstract class ProxyBase<WrappedType, DerivedType> : INotifyPropertyChanged, INotifyDataErrorInfoImpl<DerivedType>, IEditableObject
         where WrappedType : class
         where DerivedType : ProxyBase<WrappedType, DerivedType>
     {
+        /// <summary>
+        /// The wrapped business object (typically a DB entity) being proxied.
+        /// </summary>
         public readonly WrappedType WrappedElt;
 
-        private readonly FluentWpfValidator<DerivedType> _Validator;
+        private readonly FluentErrorHelper<DerivedType> _ErrorHelper;
 
-        protected ProxyBase(WrappedType inner, FluentWpfValidator<DerivedType> validator)
+        /// <summary>
+        /// Initializes a new instance of the ProxyBase class.
+        /// </summary>
+        /// <param name="inner">The wrapped business object to be proxied.</param>
+        /// <param name="validator">The FluentValidator instance used for validating the proxy.</param>
+        protected ProxyBase(WrappedType inner, AbstractValidator<DerivedType> validator)
         {
-            _Validator = validator;
+            _ErrorHelper = new FluentErrorHelper<DerivedType>(validator, (DerivedType)this);
             WrappedElt = inner;
             System.Diagnostics.Debug.Assert(this.GetType().IsAssignableTo(typeof(DerivedType)));
         }
 
         #region INotifyPropertyChanged implementation
+        /// <summary>
+        /// Raised when a property value has changed.
+        /// </summary>
         public event PropertyChangedEventHandler PropertyChanged;
 
+        /// <summary>
+        /// Sets a property value on the wrapped object and raises PropertyChanged event.
+        /// </summary>
+        /// <typeparam name="T">The type of the property.</typeparam>
+        /// <param name="selector">A lambda expression selecting the property to set.</param>
+        /// <param name="value">The new value for the property.</param>
+        /// <param name="validate">Whether to validate all properties after setting.</param>
+        /// <param name="set_dirty">Whether to mark the proxy as dirty after setting.</param>
+        /// <param name="propertyName">The name of the property (automatically set by CallerMemberName).</param>
+        /// <returns>True if the value was changed; false if the new value equals the current value.</returns>
         protected bool SetProperty<T>(Expression<Func<WrappedType, T>> selector, T value, bool validate= true, bool set_dirty = true, [CallerMemberName] string propertyName = null)
         {
             var propertyInfo = GetMemberFromExpression(selector);
@@ -60,6 +80,16 @@ namespace LSMEmprunts
             return true;
         }
 
+        /// <summary>
+        /// Sets a backing field value and raises PropertyChanged event.
+        /// </summary>
+        /// <typeparam name="T">The type of the backing field.</typeparam>
+        /// <param name="backingField">The backing field to set.</param>
+        /// <param name="value">The new value for the backing field.</param>
+        /// <param name="validate">Whether to validate all properties after setting.</param>
+        /// <param name="set_dirty">Whether to mark the proxy as dirty after setting.</param>
+        /// <param name="propertyName">The name of the property (automatically set by CallerMemberName).</param>
+        /// <returns>True if the value was changed; false if the new value equals the current value.</returns>
         protected bool SetProperty<T>(ref T backingField, T value, bool validate = true, bool set_dirty=true, [CallerMemberName] string propertyName = null)
         {
             if (!Equals(backingField, value))
@@ -79,13 +109,23 @@ namespace LSMEmprunts
             return false;
         }
 
+        /// <summary>
+        /// Raises the PropertyChanged event for the specified property.
+        /// </summary>
+        /// <param name="propertyName">The name of the property that changed.</param>
         private void RaisePropertyChanged(string propertyName) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         #endregion
 
         #region IsDirty handling
         private bool _IsDirty = false;
+        /// <summary>
+        /// Gets a value indicating whether the proxy has been modified.
+        /// </summary>
         public bool IsDirty => _IsDirty;
 
+        /// <summary>
+        /// Marks the proxy as dirty (modified).
+        /// </summary>
         internal void SetDirty()
         {
             if (!_IsDirty)
@@ -97,35 +137,58 @@ namespace LSMEmprunts
 
         #endregion
 
-        #region INotifyDataErrorInfo implementation
+        #region INotifyDataErrorInfoImpl implementation
 
+        private bool _HasErrors;
+        /// <summary>
+        /// Gets a value indicating whether the proxy has validation errors.
+        /// </summary>
+        public bool HasErrors => _HasErrors;
 
-        public event EventHandler<DataErrorsChangedEventArgs> ErrorsChanged;
-
-        public IEnumerable GetErrors(string propertyName) => _Validator?.GetErrors(propertyName) ?? Enumerable.Empty<string>();
-
-        public bool HasErrors => _Validator?.HasErrors ?? false;
-
-        protected void ValidateAllProperties()
+        /// <summary>
+        /// Sets whether the proxy has validation errors.
+        /// </summary>
+        /// <param name="b">True if there are errors; false otherwise.</param>
+        public void SetHasError(bool b)
         {
-            if (_Validator != null)
+            if (_HasErrors != b)
             {
-                var changes = _Validator.ValidateAllProperties((DerivedType)this, out var hasErrorsChanged);
-                if (hasErrorsChanged)
-                {
-                    RaisePropertyChanged(nameof(HasErrors));
-                }
-                foreach (var change in changes)
-                {
-                    ErrorsChanged?.Invoke(this, change);
-                }
+                _HasErrors = b;
+                RaisePropertyChanged(nameof(HasErrors));
             }
         }
+
+        /// <summary>
+        /// Raised when the collection of validation errors has changed.
+        /// </summary>
+        public event EventHandler<DataErrorsChangedEventArgs> ErrorsChanged;
+
+        /// <summary>
+        /// Raises the ErrorsChanged event.
+        /// </summary>
+        /// <param name="args">The DataErrorsChangedEventArgs containing information about the errors that changed.</param>
+        public void RaiseErrorsChanged(DataErrorsChangedEventArgs args) => ErrorsChanged?.Invoke(this, args);
+
+        /// <summary>
+        /// Gets the validation errors for the specified property.
+        /// </summary>
+        /// <param name="propertyName">The name of the property to get errors for; null or empty string for object-level errors.</param>
+        /// <returns>An enumerable collection of validation errors.</returns>
+        public IEnumerable GetErrors(string propertyName) => _ErrorHelper.GetErrors(propertyName);
+
+        /// <summary>
+        /// Validates all properties of the proxy.
+        /// </summary>
+        public void ValidateAllProperties() => _ErrorHelper.ValidateAllProperties();
+
         #endregion
 
         #region IEditableObject implementation
         private Memento<WrappedType> _Memento;
 
+        /// <summary>
+        /// Begins an edit transaction on the proxy.
+        /// </summary>
         public void BeginEdit()
         {
             if (_Memento==null)
@@ -134,11 +197,17 @@ namespace LSMEmprunts
             }
         }
 
+        /// <summary>
+        /// Ends an edit transaction on the proxy, committing all changes.
+        /// </summary>
         public void EndEdit()
         {
             _Memento = null;
         }
 
+        /// <summary>
+        /// Cancels an edit transaction on the proxy, rolling back all changes.
+        /// </summary>
         public void CancelEdit()
         {
             if (_Memento!=null)
@@ -149,7 +218,7 @@ namespace LSMEmprunts
                     RaisePropertyChanged(propName);
                 }
                 _Memento = null;
-                ValidateAllProperties();
+                _ErrorHelper.ValidateAllProperties();
             }
         }
         #endregion
@@ -163,6 +232,12 @@ namespace LSMEmprunts
         /// </remarks>
         private static readonly Dictionary<LambdaExpression, PropertyInfo> _MemberToPropertyInfoDict = new();
 
+        /// <summary>
+        /// Extracts the PropertyInfo from a lambda expression that selects a property.
+        /// </summary>
+        /// <param name="lambdaExpression">A lambda expression selecting a property of WrappedType.</param>
+        /// <returns>The PropertyInfo of the selected property.</returns>
+        /// <exception cref="InvalidEnumArgumentException">Thrown if the selector is not a non-static property of WrappedType.</exception>
         private static PropertyInfo GetMemberFromExpression(LambdaExpression lambdaExpression)
         {
             if (!_MemberToPropertyInfoDict.TryGetValue(lambdaExpression, out var propertyInfo))

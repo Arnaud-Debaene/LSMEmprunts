@@ -1,38 +1,41 @@
-﻿<Window x:Class="LSMEmprunts.UserHistoryDlg"
+﻿<rxui:ReactiveUserControl x:Class="LSMEmprunts.UserHistoryDlg" x:TypeArguments="local:UserHistoryDlgViewModel"
+        xmlns:rxui="http://reactiveui.net"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:LSMEmprunts"
         mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:UserHistoryDlgViewModel}"
-        Title="Historique Utilisateur" Height="600" Width="800" WindowStyle="None" WindowStartupLocation="CenterOwner"
+        Height="600" Width="800"
         FontSize="18">
-    <Grid Margin="5">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="auto" />
-            <RowDefinition Height="auto" />
-        </Grid.RowDefinitions>
+    <Border Style="{StaticResource DialogBorderStyle}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="auto" />
+                <RowDefinition Height="auto" />
+            </Grid.RowDefinitions>
 
-        <TextBlock HorizontalAlignment="Center" Text="{Binding Title}" FontSize="26" />
+            <TextBlock x:Name="Title" HorizontalAlignment="Center" FontSize="26" />
 
-        <DataGrid Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" ItemsSource="{Binding Borrowings}">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="Nom" Binding="{Binding Gear.Name}" />
-                <DataGridTextColumn Header="Type" Binding="{Binding Gear.Type}" />
-                <DataGridTextColumn Header="Date d'emprunt" Binding="{Binding BorrowTime, StringFormat=\{0:dd.MM.yy HH:mm\}}" />
-                <DataGridTextColumn Header="Date de retour" Binding="{Binding ReturnTime, StringFormat=\{0:dd.MM.yy HH:mm\}}" />
-                <DataGridTextColumn Header="Etat" Binding="{Binding State, Converter={StaticResource BorrowStateConverter}}" />
-                <DataGridTextColumn Header="Commentaire" Binding="{Binding Comment}" />
-            </DataGrid.Columns>
-        </DataGrid>
+            <DataGrid x:Name="BorrowingsGrid" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Nom" Binding="{Binding Gear.Name}" />
+                    <DataGridTextColumn Header="Type" Binding="{Binding Gear.Type}" />
+                    <DataGridTextColumn Header="Date d'emprunt" Binding="{Binding BorrowTime, StringFormat=\{0:dd.MM.yy HH:mm\}}" />
+                    <DataGridTextColumn Header="Date de retour" Binding="{Binding ReturnTime, StringFormat=\{0:dd.MM.yy HH:mm\}}" />
+                    <DataGridTextColumn Header="Etat" Binding="{Binding State, Converter={StaticResource BorrowStateConverter}}" />
+                    <DataGridTextColumn Header="Commentaire" Binding="{Binding Comment}" />
+                </DataGrid.Columns>
+            </DataGrid>
 
-        <Button Grid.Row="2" Command="{Binding ClearHistoryCommand}" HorizontalAlignment="Center" Margin="10">Vider historique</Button>
+            <Button x:Name="ClearHistoryBtn" Grid.Row="2" HorizontalAlignment="Center" Margin="10">Vider historique</Button>
 
-        <Button Grid.Row="3" HorizontalAlignment="Center" Command="{Binding CloseCommand}" Margin="5">
-            <Rectangle Width="70" Height="70" Margin="5" Fill="{StaticResource CancelIcon}"/>
-        </Button>
+            <Button x:Name="CloseBtn" Grid.Row="3" HorizontalAlignment="Center" Margin="5">
+                <Rectangle Width="70" Height="70" Margin="5" Fill="{StaticResource CancelIcon}"/>
+            </Button>
 
-    </Grid>
-</Window>
+        </Grid>
+    </Border>
+</rxui:ReactiveUserControl>

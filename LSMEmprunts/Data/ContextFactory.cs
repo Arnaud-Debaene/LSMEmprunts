@@ -1,6 +1,5 @@
 ﻿using LSMEmprunts.Data;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using System.Configuration;
 
 namespace LSMEmprunts

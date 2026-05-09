@@ -1,33 +1,28 @@
-﻿using MvvmDialogs.ViewModels;
+﻿using LSMEmprunts.Dialogs;
+using ReactiveUI;
 using System;
-using System.Windows.Threading;
+using System.Reactive;
+using System.Reactive.Disposables.Fluent;
+using System.Reactive.Linq;
 
 namespace LSMEmprunts
 {
-    public sealed class WarningWindowViewModel : ModalDialogViewModelBase
+    public sealed class WarningWindowViewModel : ModalDialogViewModelBase<Unit>, IActivatableViewModel
     {
-        public string Message { get; }
+        public ViewModelActivator Activator { get; } = new();
 
-        private static readonly TimeSpan Duration = TimeSpan.FromSeconds(4);
+        public string Message { get; }
 
         public WarningWindowViewModel(string msg)
         {
             Message = msg;
+
+            this.WhenActivated(disposables =>
+            {
+                var interval = TimeSpan.FromSeconds(4);
+                Observable.Timer(interval).Subscribe(_ => CloseCommand.Execute(Unit.Default).Subscribe()).DisposeWith(disposables);
+            });
         }
 
-        private DispatcherTimer _Timer;
-
-        public void OnViewLoaded()
-        {
-            _Timer = new DispatcherTimer { Interval = Duration };
-            _Timer.Tick += OnTimerElapsed;
-            _Timer.Start();
-        }
-
-        private void OnTimerElapsed(object sender, EventArgs e)
-        {
-            _Timer.Stop();
-            RequestClose();
-        }
     }
 }

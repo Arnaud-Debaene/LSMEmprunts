@@ -1,16 +1,17 @@
-﻿<Window x:Class="LSMEmprunts.MainWindow"
+﻿<rxui:ReactiveWindow x:Class="LSMEmprunts.MainWindow" x:TypeArguments="local:MainWindowViewModel"
+        xmlns:rxui="http://reactiveui.net"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:LSMEmprunts"
-        xmlns:dlgs="clr-namespace:MvvmDialogs.Behaviors"
         mc:Ignorable="d" 
         Title="LSM Emprunts" Height="768" Width="1024"
-        DataContext="{x:Static local:MainWindowViewModel.Instance}"
-        dlgs:DialogBehavior.DialogViewModels="{Binding Dialogs}"
         FontSize="22" WindowState="Maximized">
 
-        
-    <ContentControl Content="{Binding CurrentPageViewModel}" />
-</Window>
+
+    <rxui:RoutedViewHost 
+            x:Name="RoutedViewHost"
+            HorizontalContentAlignment="Stretch"
+            VerticalContentAlignment="Stretch" />
+</rxui:ReactiveWindow>

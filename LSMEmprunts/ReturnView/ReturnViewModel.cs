@@ -3,12 +3,14 @@ using DynamicData.Binding;
 using LSMEmprunts.Data;
 using Microsoft.EntityFrameworkCore;
 using ReactiveUI;
+using ReactiveUI.SourceGenerators;
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
+using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Windows.Input;
 
@@ -36,34 +38,48 @@ namespace LSMEmprunts
         public string Comment { get; set; }
     }
 
-    public sealed class ReturnViewModel : ReactiveObject, IDisposable
+    public sealed partial class ReturnViewModel : ReactiveObject, IDisposable, IRoutableViewModel
     {
+        public string UrlPathSegment => "return";
+
+        public IScreen HostScreen { get; }
+
         private readonly Context _Context;
 
-        public ObservableCollection<ReturnInfo> ClosingBorrowings { get; } = new();
+        public ObservableCollection<ReturnInfo> ClosingBorrowings { get; } = [];
 
         public ICollectionView Gears { get; }
-  
 
-        public ReturnViewModel()
+        public Interaction<WarningWindowViewModel, Unit> ShowWarningDialog { get; } = new();
+
+
+        public ReturnViewModel(IScreen screen)
         {
-            SelectGearCommand = ReactiveCommand.Create<GearReturnInfo>(SelectGearCmd);
+            HostScreen = screen;
+
+            SelectGearCommand = ReactiveCommand.CreateFromTask<GearReturnInfo>(SelectGearCmdAsync);
             
             var canValidateCmd = ClosingBorrowings.ToObservableChangeSet().ToCollection().Any();
-            ValidateCommand = ReactiveCommand.Create(ValidateCmd, canValidateCmd);
+            ValidateCommand = ReactiveCommand.CreateFromTask(async() =>
+            {
+                await SaveData();
+                await GoBackToHomeViewAsync();
+            }, canValidateCmd);
             
-            CancelCommand = ReactiveCommand.Create(GoBackToHomeView);
+            CancelCommand = ReactiveCommand.CreateFromTask(GoBackToHomeViewAsync);
 
-            this.WhenAnyValue(e => e.SelectedGearId).Subscribe(x => HandleSelectedGearIdChange(x));
+            this.WhenAnyValue(e => e.SelectedGearId).Subscribe(async (x) => await HandleSelectedGearIdChangeAsync(x));
 
 
             _Context = ContextFactory.OpenContext();
 
+            //load all gears with an additional "Borrowed" property to know if they are currently borrowed or not
             var gears = (from gear in _Context.Gears
                          let borrowed = gear.Borrowings.Any(e => e.State == BorrowingState.Open)
-                         select new GearReturnInfo { Gear = gear, Borrowed = borrowed }).OrderByDescending(e=>e.Borrowed)
-                         .ToList();
+                         select new GearReturnInfo { Gear = gear, Borrowed = borrowed }).AsEnumerable()
+                         .OrderByDescending(e=>e.Borrowed).ThenBy(e=>e.Name).ToList();
 
+            //create a collection view to be able to filter out gears that are in the process of being returned (in ClosingBorrowings)
             Gears = CollectionViewSource.GetDefaultView(gears);
             Gears.Filter = (item) =>
             {
@@ -82,14 +98,16 @@ namespace LSMEmprunts
             _Context?.Dispose();
         }
 
-        private string _SelectedGearId;
-        public string SelectedGearId
+        private async Task GoBackToHomeViewAsync()
         {
-            get => _SelectedGearId;
-            set => this.RaiseAndSetIfChanged(ref _SelectedGearId, value);
+            Dispose();
+            await HostScreen.Router.NavigateBack.Execute();
         }
 
-        private void HandleSelectedGearIdChange(string selectedGearId)
+        [Reactive]
+        private string _SelectedGearId;       
+
+        private async Task HandleSelectedGearIdChangeAsync(string selectedGearId)
         {
             if (string.IsNullOrEmpty(selectedGearId))
             {
@@ -97,14 +115,14 @@ namespace LSMEmprunts
             }
 
             var valueLower = selectedGearId.ToLower();
-            var matchingGear = _Context.Gears.FirstOrDefault(e => e.Name.ToLower() == valueLower);
+            var matchingGear = await _Context.Gears.FirstOrDefaultAsync(e => e.Name.ToLower() == valueLower);
             if (matchingGear != null)
             {
                 System.Diagnostics.Debug.WriteLine("Found a matching gear by name");
             }
             else
             {
-                matchingGear = _Context.Gears.FirstOrDefault(e => e.BarCode == selectedGearId);
+                matchingGear = await _Context.Gears.FirstOrDefaultAsync(e => e.BarCode == selectedGearId);
                 if (matchingGear != null)
                 {
                     System.Diagnostics.Debug.WriteLine("Found a matching gear by scan");
@@ -113,54 +131,46 @@ namespace LSMEmprunts
 
             if (matchingGear != null)
             {
-                SelectGearToReturn(matchingGear);
+                await SelectGearToReturn(matchingGear);
             }
         }
 
         public ICommand ValidateCommand { get; }
-        private async void ValidateCmd()
+        private async Task SaveData()
         {
             await _Context.SaveChangesAsync();
             await _Context.Database.ExecuteSqlRawAsync($"NOTIFY {nameof(Borrowing)}");
-            GoBackToHomeView();
         }
 
         public ICommand CancelCommand { get; }
-        private async void GoBackToHomeView()
-        {
-            await MainWindowViewModel.Instance.SetCurrentPage(new HomeViewModel());
-        }
+     
 
         public ReactiveCommand<GearReturnInfo, Unit> SelectGearCommand { get; }
-        public void SelectGearCmd(GearReturnInfo info)
+        public async Task SelectGearCmdAsync(GearReturnInfo info)
         {
-            SelectGearToReturn(info.Gear);
+            await SelectGearToReturn(info.Gear);
         }
 
         private IDisposable _AutoValidateTickerSubscription;
 
-        private CountDownTicker _AutoValidateTicker;
-        public CountDownTicker AutoValidateTicker
-        {
-            get => _AutoValidateTicker;
-            set => this.RaiseAndSetIfChanged(ref _AutoValidateTicker, value);
-        }
+        [Reactive]
+        private CountDownTicker _AutoValidateTicker;       
 
-        private void SelectGearToReturn(Gear gear)
+        private async Task SelectGearToReturn(Gear gear)
         {
             //check for double input of a given gear
             if (ClosingBorrowings.Any(e => e.Borrowing.Gear == gear))
             {
                 var vm = new WarningWindowViewModel("Matériel déjà rendu");
-                MainWindowViewModel.Instance.Dialogs.Add(vm);
+                await ShowWarningDialog.Handle(vm);
                 SelectedGearId = string.Empty;
                 return;
             }
 
-            var now = DateTime.Now;
+            var now = DateTime.UtcNow;
 
-            var matchingBorrowing = _Context.Borrowings.Include(e => e.Gear)
-                .FirstOrDefault(e => e.Gear == gear && e.State == BorrowingState.Open);
+            var matchingBorrowing = await _Context.Borrowings.Include(e => e.Gear)
+                .FirstOrDefaultAsync(e => e.Gear == gear && e.State == BorrowingState.Open);
 
             if (matchingBorrowing != null)
             {
@@ -171,8 +181,8 @@ namespace LSMEmprunts
             else
             {
                 var msgVm = new WarningWindowViewModel("Matériel retourné sans avoir été emprunté");
-                MainWindowViewModel.Instance.Dialogs.Add(msgVm);
-
+                await ShowWarningDialog.Handle(msgVm);
+                
                 //create a "fake" borrowing with same Borrow / Return date
                 var borrowing = new Borrowing
                 {
@@ -182,7 +192,7 @@ namespace LSMEmprunts
                     State = BorrowingState.GearReturned,
                     Comment = "Retourné sans avoir été emprunté",
                 };
-                _Context.Borrowings.Add(borrowing);
+                await _Context.Borrowings.AddAsync(borrowing);
                 ClosingBorrowings.Add(new ReturnInfo { Borrowing = borrowing, Comment = "Retourné sans avoir été emprunté" });
             }
 

@@ -1,5 +1,6 @@
-﻿<UserControl x:Class="LSMEmprunts.BorrowView"
+﻿<rxui:ReactiveUserControl x:Class="LSMEmprunts.BorrowView" x:TypeArguments="local:BorrowViewModel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:rxui="http://reactiveui.net"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
@@ -21,7 +22,7 @@
             <RowDefinition Height="auto"/>
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Margin="5" IsEnabled="{Binding UserSelected, Converter={StaticResource BoolToInvertConverter}}">
+        <Grid x:Name="UsersPart" Grid.Row="0" Margin="5">
             <Grid.RowDefinitions>
                 <RowDefinition Height="auto" />
                 <RowDefinition Height="auto" />
@@ -30,14 +31,13 @@
             </Grid.RowDefinitions>
 
             <TextBlock Grid.Row="0">Saisissez votre nom</TextBlock>
-            <TextBox Grid.Row="1" Text="{Binding Path=SelectedUserText, UpdateSourceTrigger=PropertyChanged}">
+            <TextBox x:Name="UserNameInput" Grid.Row="1">
                 <i:Interaction.Behaviors>
-                    <local:BindOnEnterBehavior/>
                     <local:CaptureKeyboardBehavior Active="{Binding UserSelected, Converter={StaticResource BoolToInvertConverter}}" />
                 </i:Interaction.Behaviors>
             </TextBox>
 
-            <ListBox Grid.Row="2" ItemsSource="{Binding Users}" SelectedItem="{Binding CurrentUser}">
+            <ListBox x:Name="ListUsers" Grid.Row="2">
                 <ListBox.ItemTemplate>
                     <DataTemplate DataType="{x:Type data:User}">
                         <TextBlock Text="{Binding Name}" />
@@ -47,7 +47,7 @@
             
             <StackPanel Grid.Row="3" Orientation="Horizontal">
                 <TextBlock>Utilisateur : </TextBlock>
-                <TextBlock FontWeight="Bold" Text="{Binding CurrentUser.Name}" />
+                <TextBlock x:Name="SelectedUserLbl" FontWeight="Bold" />
             </StackPanel>
         </Grid>
         
@@ -63,26 +63,22 @@
             </Grid.RowDefinitions>
 
             <TextBlock Grid.Row="0">Scannez la matériel ou double cliquez dans la liste</TextBlock>
-            <TextBox Grid.Row="1" Text="{Binding SelectedGearId, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding UserSelected}">
+            <TextBox x:Name="GearIdInputTxt" Grid.Row="1">
                 <i:Interaction.Behaviors>
-                    <local:BindOnEnterBehavior/>
                     <local:CaptureKeyboardBehavior Active="{Binding GearTextBoxShallRetainFocus}" />
-                    <local:TranslateKeyboardInputBehavior />
-                    <local:OnlyNumbersAllowedBehavior />
                 </i:Interaction.Behaviors>
             </TextBox>
             
-            <ListBox Grid.Row="2" Margin="0,5,0,5" HorizontalContentAlignment="Stretch" ItemsSource="{Binding Gears}" IsEnabled="{Binding UserSelected}">
+            <ListBox x:Name="ListGears" Grid.Row="2" Margin="0,5,0,5" HorizontalContentAlignment="Stretch">
                 <ListBox.ItemTemplate>
                     <DataTemplate DataType="{x:Type local:GearBorrowInfo}">
-                        <Grid>
-                            <TextBlock Text="{Binding Name}" FontWeight="{Binding Available, Converter={StaticResource BoolToBoldConverter}}"/>
-                            <UIElement.InputBindings>
-                                <MouseBinding Gesture="LeftDoubleClick" 
-                                              Command="{Binding RelativeSource={RelativeSource AncestorType=ListBox}, Path=DataContext.SelectGearCommand}"
-                                              CommandParameter="{Binding }"/>
-                            </UIElement.InputBindings>
-                        </Grid>
+                            <TextBlock Text="{Binding Name}" FontWeight="{Binding Available, Converter={StaticResource BoolToBoldConverter}}">
+                                <UIElement.InputBindings>
+                                    <MouseBinding Gesture="LeftDoubleClick" 
+                                                  Command="{Binding RelativeSource={RelativeSource AncestorType=ListBox}, Path=DataContext.SelectGearCommand}"
+                                                  CommandParameter="{Binding }"/>
+                                </UIElement.InputBindings>
+                            </TextBlock>                            
                     </DataTemplate>
                 </ListBox.ItemTemplate>
                 
@@ -99,30 +95,32 @@
                 <RowDefinition Height="3*"/>
             </Grid.RowDefinitions>
             <TextBlock Grid.Row="0">Commentaire</TextBlock>
-            <TextBox Grid.Row="1" TextWrapping="Wrap" AcceptsReturn="True" Text="{Binding Comment}" IsEnabled="{Binding UserSelected}">
+            <TextBox x:Name="CommentTxt" Grid.Row="1" TextWrapping="Wrap" AcceptsReturn="True">
                 <i:Interaction.Behaviors>
                     <local:SetFocusBehavior IsFocused="{Binding CommentTextBoxFocused}" />
                 </i:Interaction.Behaviors>
             </TextBox>
 
-            <DataGrid Grid.Row="2" ItemsSource="{Binding BorrowedGears}" Margin="0 5"
-                      AutoGenerateColumns="False" IsReadOnly="True">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Binding="{Binding Type, Converter={StaticResource GearTypeConverter}}" Header="Type"/>
-                    <DataGridTextColumn Binding="{Binding Name}" Header="Nom"/>
-                </DataGrid.Columns>
-            </DataGrid>
+            <ListView x:Name="BorrowedGearGrid" Grid.Row="2" Margin="0 5" IsEnabled="False">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="Type" DisplayMemberBinding="{Binding Type, Converter={StaticResource GearTypeConverter}}" Width="70"/>
+                        <GridViewColumn Header="Nom" DisplayMemberBinding="{Binding Name}" Width="200" />
+                    </GridView>
+                </ListView.View>
+            </ListView>
+            
         </Grid>
 
         <StackPanel Orientation="Horizontal" Grid.Row="1" Grid.Column="4" HorizontalAlignment="Right">
-            <Button HorizontalAlignment="Center" Command="{Binding ValidateCommand}" Margin="5">
+            <Button x:Name="ValidateBtn" HorizontalAlignment="Center" Margin="5">
                 <Grid Width="70" Height="70" Margin="5" Background="{StaticResource CheckIcon}">
-                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding AutoValidateTicker.RemainingTime}" />
+                    <TextBlock x:Name="TickerLbl" HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Grid>
             </Button>
-            <Button HorizontalAlignment="Center" Command="{Binding CancelCommand}" Margin="5">
+            <Button x:Name="CancelBtn" HorizontalAlignment="Center" Margin="5">
                 <Rectangle Width="70" Height="70" Margin="5" Fill="{StaticResource CancelIcon}"/>
             </Button>
         </StackPanel>
     </Grid>
-</UserControl>
+</rxui:ReactiveUserControl>

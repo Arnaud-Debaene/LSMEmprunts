@@ -1,25 +1,26 @@
-﻿<Window x:Class="LSMEmprunts.ConfirmWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d"
-        Height="200" Width="500" WindowStyle="None" WindowStartupLocation="CenterOwner" FontSize="22">
+﻿<rxui:ReactiveUserControl x:Class="LSMEmprunts.ConfirmWindow" x:TypeArguments="local:ConfirmWindowViewModel"
+                          xmlns:rxui="http://reactiveui.net"
+                          xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                          xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                          xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                          xmlns:local="clr-namespace:LSMEmprunts"
+                          mc:Ignorable="d" Height="200" Width="500"  FontSize="22">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         
-        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding Message}" TextWrapping="Wrap"/>
+        <TextBlock x:Name="MessageTextBlock" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap"/>
         
         <UniformGrid Grid.Row="1" Columns="2" Margin="5">
-            <Button Command="{Binding ConfirmCommand}" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Button x:Name="ConfirmBtn" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Rectangle Width="50" Height="50" Fill="{StaticResource CheckIcon}"/>
             </Button>
-            <Button Command="{Binding CloseCommand}" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Button x:Name="CloseBtn" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Rectangle Width="50" Height="50" Fill="{StaticResource CancelIcon}"/>
             </Button>
         </UniformGrid>
     </Grid>
-</Window>
+</rxui:ReactiveUserControl>

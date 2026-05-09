@@ -3,37 +3,16 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:LSMEmprunts"
              xmlns:data="clr-namespace:LSMEmprunts.Data"
-             xmlns:core="clr-namespace:System;assembly=mscorlib"
-             xmlns:mvvmdialogs="clr-namespace:MvvmDialogs"
-             StartupUri="MainWindow.xaml" Startup="OnAppStartup">
+             xmlns:core="clr-namespace:System;assembly=mscorlib">
     <Application.Resources>
-        <!--Mapping between "Main" views and their viewmodel-->
-        <DataTemplate DataType="{x:Type local:HomeViewModel}">
-            <local:HomeView />
-        </DataTemplate>
 
-        <DataTemplate DataType="{x:Type local:BorrowViewModel}">
-            <local:BorrowView />
-        </DataTemplate>
-
-        <DataTemplate DataType="{x:Type local:ReturnViewModel}">
-            <local:ReturnView />
-        </DataTemplate>
-
-        <DataTemplate DataType="{x:Type local:SettingsViewModel}">
-            <local:SettingsView />
-        </DataTemplate>
-
-        <!--Mapping between dialogs and their viewmodel-->
-        <mvvmdialogs:OpenFileDialogPresenter x:Key="{x:Type mvvmdialogs:OpenFileDialogViewModel}" x:Shared="false" />
-        <mvvmdialogs:MessageBoxPresenter x:Key="{x:Type mvvmdialogs:MessageBoxViewModel}" x:Shared="false" />
-        <mvvmdialogs:SaveFileDialogPresenter x:Key="{x:Type mvvmdialogs:SaveFileDialogViewModel}" x:Shared="false" />
-        <local:GearHistoryDlg x:Key="{x:Type local:GearHistoryDlgViewModel}" x:Shared="false" />
-        <local:UserHistoryDlg x:Key="{x:Type local:UserHistoryDlgViewModel}" x:Shared="false" />
-        <local:PasswordDlg x:Key="{x:Type local:PasswordDlgViewModel}" x:Shared="false" />
-        <local:WarningWindow x:Key="{x:Type local:WarningWindowViewModel}" x:Shared="false" />
-        <local:ConfirmWindow x:Key="{x:Type local:ConfirmWindowViewModel}" x:Shared="False" />
-        <local:BorrowOnPeriodDlg x:Key="{x:Type local:BorrowOnPeriodViewModel}" x:Shared="false" />
+        <Style x:Key="DialogBorderStyle" TargetType="Border">
+            <Setter Property="BorderBrush" Value="Black" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="5" />
+            <Setter Property="Background" Value="White" />
+        </Style>
 
         <!--Converters-->
         <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />

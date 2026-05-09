@@ -3,28 +3,44 @@ using LSMEmprunts.Data;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using ReactiveUI;
+using Splat;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
+using System.Reactive;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Input;
 
 namespace LSMEmprunts
 {
-    public sealed class HomeViewModel : ReactiveObject, IAsyncDisposable
+    public sealed class HomeViewModel : ReactiveObject, IAsyncDisposable, IRoutableViewModel
     {
+        public string UrlPathSegment => "home";
+
+        public IScreen HostScreen { get; }
+
         public ObservableCollectionExtended<Borrowing> ActiveBorrowings { get; } = new();
 
-        public HomeViewModel()
+        public HomeViewModel(IScreen screen = null)
         {
-            BorrowCommand = ReactiveCommand.Create(BorrowCmd);
-            ReturnCommand = ReactiveCommand.Create(ReturnCmd);
-            SettingsCommand = ReactiveCommand.Create(SettingsCmd);
+            HostScreen = screen ?? AppLocator.Current.GetService<IScreen>();
+
+            BorrowCommand = ReactiveCommand.CreateFromObservable(()=> HostScreen.Router.Navigate.Execute(new BorrowViewModel(HostScreen)));
+            ReturnCommand = ReactiveCommand.CreateFromObservable(() => HostScreen.Router.Navigate.Execute(new ReturnViewModel(HostScreen)));
+            SettingsCommand = ReactiveCommand.CreateFromTask(async () =>
+            {
+                var dialogVm = new PasswordDlgViewModel();
+                var result = await ShowPasswordDlg.Handle(dialogVm);
+                if (result == ConfigurationManager.AppSettings["AdminPassword"])
+                {
+                    await HostScreen.Router.Navigate.Execute(new SettingsViewModel(HostScreen));
+                }
+            });
+
 
             //start to listen for DB notifications
             _NotificationWaitTask = Task.Run(ListenDbNotificationsAsync);
@@ -89,27 +105,11 @@ namespace LSMEmprunts
             await _NotificationWaitTask;
         }
 
-        public ICommand BorrowCommand { get; }
-        private async void BorrowCmd()
-        {
-            await MainWindowViewModel.Instance.SetCurrentPage(new BorrowViewModel());
-        }
+        public ReactiveCommand<Unit, IRoutableViewModel> BorrowCommand { get; }       
+        public ReactiveCommand<Unit, IRoutableViewModel> ReturnCommand { get; }
+        public ReactiveCommand<Unit, Unit> SettingsCommand { get; }
 
-        public ICommand ReturnCommand { get; }
-        private async void ReturnCmd()
-        {
-            await MainWindowViewModel.Instance.SetCurrentPage(new ReturnViewModel());
-        }
+        public Interaction<PasswordDlgViewModel, string> ShowPasswordDlg { get; } = new();
 
-        public ICommand SettingsCommand { get; }
-        private async void SettingsCmd()
-        {
-            var vm = new PasswordDlgViewModel();
-            MainWindowViewModel.Instance.Dialogs.Add(vm);
-            if (await vm.Result == ConfigurationManager.AppSettings["AdminPassword"])
-            {
-                await MainWindowViewModel.Instance.SetCurrentPage(new SettingsViewModel());
-            }
-        }
     }
 }

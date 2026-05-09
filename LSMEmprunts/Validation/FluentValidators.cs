@@ -5,8 +5,21 @@ using System.Collections.Generic;
 
 namespace LSMEmprunts
 {
+    /// <summary>
+    /// Provides reusable FluentValidation extension methods for common validation rules.
+    /// </summary>
     public static class FluentValidators
     {
+        /// <summary>
+        /// Adds a uniqueness rule for a property within a collection extracted from the validated object.
+        /// The rule passes when no other item in the collection (except the validated object) has the same
+        /// property value as the current property value.
+        /// </summary>
+        /// <typeparam name="T">The type of the validated object.</typeparam>
+        /// <typeparam name="TProperty">The type of the property being validated. Must implement <see cref="IEquatable{TProperty}"/>.</typeparam>
+        /// <param name="ruleBuilder">The rule builder for the property being validated.</param>
+        /// <param name="collectionExtractor">Function that extracts the collection of items from the validated object to check against.</param>
+        /// <returns>An <see cref="IRuleBuilderOptions{T, TProperty}"/> to continue configuring the rule.</returns>
         public static IRuleBuilderOptions<T, TProperty> ItemUnique<T, TProperty>(this IRuleBuilder<T, TProperty> ruleBuilder, 
             Func<T, IEnumerable<T>> collectionExtractor) 
             where T : class
@@ -22,11 +35,11 @@ namespace LSMEmprunts
                 var collection = collectionExtractor(validatabeObject);
                 foreach (var item in collection)
                 {
-                    if (item.Equals(validatabeObject))
+                    if (item == validatabeObject)
                     {
                         continue;
                     }
-                    if (propertyExtractor(item).Equals(propertyValue))
+                    if (Comparer<TProperty>.Default.Compare(propertyExtractor(item), propertyValue) == 0)
                     {
                         return false;
                     }
@@ -35,6 +48,16 @@ namespace LSMEmprunts
             });
         }
 
+        /// <summary>
+        /// Adds a uniqueness rule for items within a collection extracted from the validated object using a custom comparer.
+        /// The rule passes when no other item in the collection (except the validated object) is considered equal by the comparer.
+        /// </summary>
+        /// <typeparam name="T">The type of the validated object.</typeparam>
+        /// <typeparam name="TProperty">The type of the property being validated. Must implement <see cref="IEquatable{TProperty}"/>.</typeparam>
+        /// <param name="ruleBuilder">The rule builder for the property being validated.</param>
+        /// <param name="collectionExtractor">Function that extracts the collection of items from the validated object to check against.</param>
+        /// <param name="itemsComparer">Comparer function that receives an item and the validated object and returns true when they should be considered equal.</param>
+        /// <returns>An <see cref="IRuleBuilderOptions{T, TProperty}"/> to continue configuring the rule.</returns>
         public static IRuleBuilderOptions<T, TProperty> ItemUnique<T, TProperty>(this IRuleBuilder<T, TProperty> ruleBuilder,
             Func<T, IEnumerable<T>> collectionExtractor, Func<T, T, bool> itemsComparer)
             where T : class
@@ -57,6 +80,5 @@ namespace LSMEmprunts
                 return true;
             });
         }
-
     }
 }

@@ -1,11 +1,16 @@
-﻿using FluentValidation;
+﻿using DynamicData;
+using FluentValidation;
 using LSMEmprunts.Data;
+using LSMEmprunts.EditableGridView;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace LSMEmprunts
 {
+    /// <summary>
+    /// An MVVM friendly wrapper around a User, for edition in the Settings view
+    /// </summary>
     public class UserProxy : ProxyBase<User, UserProxy>
     {
         private readonly IEnumerable<UserProxy> _Collection;
@@ -46,7 +51,7 @@ namespace LSMEmprunts
             StatsBorrowsCount = history.Count();
         }
 
-        private class MyValidator : FluentWpfValidator<UserProxy>
+        private class MyValidator : AbstractValidator<UserProxy>
         {
             private MyValidator() 
             {
@@ -56,5 +61,39 @@ namespace LSMEmprunts
 
             public static MyValidator Instance { get; } = new MyValidator();
         }
+    }
+
+    /// <summary>
+    /// ViewModel for the list of available Users in the Settings view
+    /// </summary>
+    public class UsersListViewModel : GridHostViewModel<UserProxy>
+    {
+        public UsersListViewModel(IEnumerable<User> users)
+        {
+            var proxies = users.Select(u => BuildProxy(u));
+            _Items.AddRange(proxies);
+        }
+
+        public void Add(User user) => _Items.Add(BuildProxy(u: user));
+
+        public void Remove(UserProxy proxy)
+        {
+            _Items.Remove(proxy);
+            ValidateAll();
+        }
+
+        override protected void OnCommitEdit() => ValidateAll();
+
+        protected override void OnCancelEdit() => ValidateAll();
+
+        private void ValidateAll()
+        {
+            foreach(var item in Items)
+            {
+                item.ValidateAllProperties();
+            }
+        }
+
+        private UserProxy BuildProxy(User u) => new(u, Items);
     }
 }

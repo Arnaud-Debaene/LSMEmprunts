@@ -1,10 +1,11 @@
-﻿<UserControl x:Class="LSMEmprunts.HomeView"
+﻿<rxui:ReactiveUserControl x:Class="LSMEmprunts.HomeView" x:TypeArguments="local:HomeViewModel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:rxui="http://reactiveui.net"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-             xmlns:local="clr-namespace:LSMEmprunts"
-             mc:Ignorable="d" d:DesignWidth="1024" d:DesignHeight="800"
+             xmlns:local="clr-namespace:LSMEmprunts" xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
+                          mc:Ignorable="d" d:DesignWidth="1024" d:DesignHeight="800"
              d:DataContext="{d:DesignInstance Type=local:HomeViewModel}">
     <Grid>
         <Grid.RowDefinitions>
@@ -17,23 +18,21 @@
 
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="200" />
                 <ColumnDefinition Width="auto"/>
-                <ColumnDefinition Width="2*" />
+                <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
             <Rectangle Grid.Column="1" Width="5" Fill="Black" />
 
             <UniformGrid Grid.Column="0" Rows="2">
-                <Button VerticalAlignment="Center" HorizontalAlignment="Center"
-                        Command="{Binding BorrowCommand}">
+                <Button x:Name="BorrowBtn" VerticalAlignment="Center" HorizontalAlignment="Center">
                     <StackPanel Orientation="Vertical">
                         <Rectangle Margin="5" Height="70" Width="70" Fill="{DynamicResource BorrowIcon}" />
                         <TextBlock HorizontalAlignment="Center">Emprunt</TextBlock>
                     </StackPanel>
                 </Button>
-                <Button VerticalAlignment="Center" HorizontalAlignment="Center"
-                        Command="{Binding ReturnCommand}">
+                <Button x:Name="ReturnBtn" VerticalAlignment="Center" HorizontalAlignment="Center">
                     <StackPanel Orientation="Vertical">
                         <Rectangle Margin="5" Height="70" Width="70" Fill="{DynamicResource ReturnIcon}" />
                         <TextBlock HorizontalAlignment="Center">Retour</TextBlock>
@@ -47,22 +46,28 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <TextBlock FontSize="36" HorizontalAlignment="Center" Margin="5">Emprunts en cours</TextBlock>
-            <DataGrid Grid.Row="1" IsReadOnly="True"
-                      ItemsSource="{Binding ActiveBorrowings}"
-                      AutoGenerateColumns="False" CanUserReorderColumns="False">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Binding="{Binding User.Name}" Header="Emprunteur"/>
-                    <DataGridTextColumn Binding="{Binding User.Phone}" Header="Téléphone"/>
-                    <DataGridTextColumn Binding="{Binding Gear.Type, Converter={StaticResource GearTypeConverter}}" Header="Type"/>
-                    <DataGridTextColumn Binding="{Binding Gear, Converter={StaticResource GearDisplayNameConverter}}" Header="Matériel"/>
-                    <DataGridTextColumn Binding="{Binding BorrowTime, StringFormat=\{0:dd.MM.yy HH:mm\}}" Header="Date"/>
-                </DataGrid.Columns>
-            </DataGrid>
+
+                <ListView x:Name="ActiveBorrowingsList" Grid.Row="1">
+                    <i:Interaction.Behaviors>
+                        <local:GridViewColumnSortBehavior/>
+                    </i:Interaction.Behaviors>
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Emprunteur" DisplayMemberBinding="{Binding User.Name}" Width="220"/>
+                            <GridViewColumn Header="Téléphone" DisplayMemberBinding="{Binding User.Phone}" Width="160"/>
+                            <GridViewColumn Header="Type" DisplayMemberBinding="{Binding Gear.Type, Converter={StaticResource GearTypeConverter}}" Width="150"/>
+                            <GridViewColumn Header="Matériel" DisplayMemberBinding="{Binding Gear, Converter={StaticResource GearDisplayNameConverter}}" Width="150"
+                                            local:GridViewColumnSortBehavior.Sort="Gear.Name"/>
+                            <GridViewColumn Header="Date" DisplayMemberBinding="{Binding BorrowTime, StringFormat=\{0:dd.MM.yy HH:mm\}}" Width="150"/>
+                        </GridView>
+                    </ListView.View>
+
+                </ListView>
             </Grid>
         </Grid>
 
-        <Button Grid.Row="2" HorizontalAlignment="Left" Command="{Binding SettingsCommand}" Margin="5">
+        <Button x:Name="SettingsBtn" Grid.Row="2" HorizontalAlignment="Left" Margin="5">
             <Rectangle Width="70" Height="70" Margin="5" Fill="{StaticResource SettingsIcon}"/>
         </Button>
     </Grid>
-</UserControl>
+</rxui:ReactiveUserControl>

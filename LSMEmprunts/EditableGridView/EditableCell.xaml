@@ -1,0 +1,20 @@
+﻿<rxui:ReactiveUserControl x:Class="LSMEmprunts.EditableCell" x:TypeArguments="rxui2:IReactiveObject"
+                          xmlns:rxui="http://reactiveui.net"
+                          xmlns:rxui2="clr-namespace:ReactiveUI;assembly=ReactiveUI"
+                          xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                          xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+                          xmlns:local="clr-namespace:LSMEmprunts"
+                          x:Name="Root" MouseDoubleClick="OnMouseDoubleClick">
+    <Grid>
+        <Border x:Name="PART_DisplayPresenter" BorderThickness="1" CornerRadius="3" BorderBrush="LightGray">
+            <ContentPresenter  Content="{Binding ElementName=Root, Path=DisplayContent}" 
+                          Visibility="Visible" HorizontalAlignment="Stretch"/>
+        </Border>
+
+        <ContentPresenter x:Name="PART_EditorPresenter" Content="{Binding}"
+                          ContentTemplate="{Binding ElementName=Root, Path=EditorTemplate}"
+                          ContentTemplateSelector="{Binding ElementName=Root, Path=EditorTemplateSelector}"
+                          Visibility="Collapsed" HorizontalAlignment="Stretch"/>
+    </Grid>
+</rxui:ReactiveUserControl>
