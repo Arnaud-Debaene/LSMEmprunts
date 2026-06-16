@@ -60,13 +60,15 @@ namespace LSMEmprunts
             var usersHasIsDirtyObservable = usersObervableChangeSet.AutoRefresh(gear => gear.IsDirty).ToCollection().Select(x => x.Any(y => y.IsDirty));
 
             /*the validate command is active when :
-             * - there is no error in eithr users nor gears
-             * - either one of the collections (gear/user) has changed, or one gear or user itself has set itself to dirty
+             * - there is no error in either users nor gears
+             * - either one of the collections (gear/user) has changed, or one gear or user itself has marked itself as dirty
              */
-            var canValidate = from hasError in gearsHasErrorsObservable.Merge(usersHasErrorsObservable)
-                              from isDirty in gearsHasIsDirtyObservable.Merge(usersHasIsDirtyObservable)
+            var canValidate = from hasGearError in gearsHasErrorsObservable
+                              from hasUserError in usersHasErrorsObservable                              
+                              from isGearDirty in gearsHasIsDirtyObservable
+                              from isUserDirty in usersHasIsDirtyObservable
                               from oneCollectionHasChanged in oneCollectionHasChangedObservable
-                              select (oneCollectionHasChanged || isDirty) && !hasError;
+                              select (oneCollectionHasChanged || isGearDirty || isUserDirty) && !hasGearError && !hasUserError;
 
             ValidateCommand = ReactiveCommand.CreateFromTask(async() => { 
                 await _Context.SaveChangesAsync();
