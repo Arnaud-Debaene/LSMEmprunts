@@ -33,7 +33,14 @@ namespace LSMEmprunts
         public GearType Type
         {
             get => WrappedElt.Type;
-            set => SetProperty(e => e.Type, value);
+            set
+            {
+                if (SetProperty(e => e.Type, value))
+                {   
+                    // Clear size when changing type, to avoid invalid sizes
+                    Size = string.Empty;
+                }   
+            }
         }
 
         public string BarCode

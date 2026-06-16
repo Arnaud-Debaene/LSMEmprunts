@@ -51,36 +51,6 @@ namespace LSMEmprunts
         }
     }
 
-    public class GearSizeTemplateSelector : DataTemplateSelector
-    {
-        public DataTemplate TankSizeTemplate { get; set; }
-
-        public DataTemplate BCDSizeTemplate { get; set; }
-
-        public DataTemplate EmptyTemplate { get; set; }
-
-        public override DataTemplate SelectTemplate(object item, DependencyObject container)
-        {
-            if (item == null)
-            {
-                return null;
-            }
-
-            var proxy = (GearProxy)item;
-            switch (proxy.Type)
-            {
-                case Data.GearType.Tank:
-                    return TankSizeTemplate;
-
-                case Data.GearType.BCD:
-                    return BCDSizeTemplate;
-
-                default:
-                    return EmptyTemplate;
-            };
-        }
-    }
-
     public class DurationConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)

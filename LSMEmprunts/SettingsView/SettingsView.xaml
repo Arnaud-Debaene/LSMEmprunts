@@ -6,6 +6,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
              xmlns:local="clr-namespace:LSMEmprunts"
+             xmlns:data="clr-namespace:LSMEmprunts.Data"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:SettingsViewModel}"
              d:DesignHeight="600" d:DesignWidth="600">
@@ -16,22 +17,6 @@
             <Setter Property="local:GridViewEx.VerticalContentAlignment" Value="Stretch"/>
             <Setter Property="Validation.ErrorTemplate" Value="{StaticResource ValidationErrorTemplate}" />
         </Style>
-
-        <local:GearSizeTemplateSelector x:Key="SizeTemplateSelector">
-            <local:GearSizeTemplateSelector.TankSizeTemplate>
-                <DataTemplate DataType="local:GearProxy">
-                    <ComboBox SelectedItem="{Binding Size, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=true}" ItemsSource="{x:Static local:GearProxy.AllowedTankSizes}" />
-                </DataTemplate>
-            </local:GearSizeTemplateSelector.TankSizeTemplate>
-            <local:GearSizeTemplateSelector.BCDSizeTemplate>
-                <DataTemplate DataType="local:GearProxy">
-                    <ComboBox SelectedItem="{Binding Size, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=true}" ItemsSource="{x:Static local:GearProxy.AllowedBCDSizes}" />
-                </DataTemplate>
-            </local:GearSizeTemplateSelector.BCDSizeTemplate>
-            <local:GearSizeTemplateSelector.EmptyTemplate>
-                <DataTemplate DataType="local:GearProxy" />
-            </local:GearSizeTemplateSelector.EmptyTemplate>
-        </local:GearSizeTemplateSelector>
 
         <local:DurationConverter x:Key="DurationConverter" />
     </FrameworkElement.Resources>
@@ -134,6 +119,15 @@
             </Grid.RowDefinitions>
             <TextBlock HorizontalAlignment="Center" Margin="10" FontSize="36">Matériel</TextBlock>
             <ListView x:Name="GearsGrid"  Grid.Row="1">
+                <ListView.Resources>
+                    <DataTemplate x:Key="TankSizeTemplate" DataType="local:GearProxy">
+                    <ComboBox SelectedItem="{Binding Size, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=true}" ItemsSource="{x:Static local:GearProxy.AllowedTankSizes}" />
+                    </DataTemplate>
+                    <DataTemplate x:Key="BCDTankSizeTemplate" DataType="local:GearProxy">
+                        <ComboBox SelectedItem="{Binding Size, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=true}" ItemsSource="{x:Static local:GearProxy.AllowedBCDSizes}" />
+                    </DataTemplate>
+                </ListView.Resources>
+                
                 <i:Interaction.Behaviors>
                     <local:GridViewColumnSortBehavior/>
                 </i:Interaction.Behaviors>
@@ -190,9 +184,23 @@
                         <GridViewColumn Header="Taille" Width="100" local:GridViewColumnSortBehavior.AllowSort="False">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
-                                    <local:EditableCell Style="{StaticResource EditableCellStyle}" ColumnKey="Size" DisplayContent="{Binding Size}"
-                                                        EditorTemplateSelector="{StaticResource SizeTemplateSelector}" 
-                                                        ClickOutsideEndEndition="False"/>
+                                    <local:EditableCell ColumnKey="Size" DisplayContent="{Binding Size}" ClickOutsideEndEndition="False">
+                                        <local:EditableCell.Style>
+                                            <Style TargetType="local:EditableCell" BasedOn="{StaticResource EditableCellStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Type}" Value="{x:Static data:GearType.BCD}">
+                                                        <Setter Property="EditorTemplate" Value="{StaticResource BCDTankSizeTemplate}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Type}" Value="{x:Static data:GearType.Tank}">
+                                                        <Setter Property="EditorTemplate" Value="{StaticResource TankSizeTemplate}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Type}" Value="{x:Static data:GearType.Regulator}">
+                                                        <Setter Property="EditorTemplate" Value="{x:Null}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </local:EditableCell.Style>
+                                    </local:EditableCell>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
