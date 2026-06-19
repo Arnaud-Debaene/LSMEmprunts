@@ -1,9 +1,11 @@
 ﻿using DynamicData;
 using DynamicData.Binding;
 using LSMEmprunts.Data;
+using LSMEmprunts.Dialogs;
 using Microsoft.EntityFrameworkCore;
 using ReactiveUI;
 using ReactiveUI.SourceGenerators;
+using Splat;
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -50,8 +52,6 @@ namespace LSMEmprunts
 
         public ICollectionView Gears { get; }
 
-        public Interaction<WarningWindowViewModel, Unit> ShowWarningDialog { get; } = new();
-
 
         public ReturnViewModel(IScreen screen)
         {
@@ -68,8 +68,9 @@ namespace LSMEmprunts
             
             CancelCommand = ReactiveCommand.CreateFromTask(GoBackToHomeViewAsync);
 
-            this.WhenAnyValue(e => e.SelectedGearId).Subscribe(async (x) => await HandleSelectedGearIdChangeAsync(x));
-
+            //note: we use InvokeCommand here instead of Subscribe because ReactiveCommand disables the command while it is executing,
+            //which avoids reentrancy issues if the user scans a gear while the previous scan is still being processed
+            this.WhenAnyValue(e => e.SelectedGearId).InvokeCommand(HandleSelectedGearIdChangeCommand);
 
             _Context = ContextFactory.OpenContext();
 
@@ -105,8 +106,9 @@ namespace LSMEmprunts
         }
 
         [Reactive]
-        private string _SelectedGearId;       
+        private string _SelectedGearId;
 
+        [ReactiveCommand]
         private async Task HandleSelectedGearIdChangeAsync(string selectedGearId)
         {
             if (string.IsNullOrEmpty(selectedGearId))
@@ -116,17 +118,9 @@ namespace LSMEmprunts
 
             var valueLower = selectedGearId.ToLower();
             var matchingGear = await _Context.Gears.FirstOrDefaultAsync(e => e.Name.ToLower() == valueLower);
-            if (matchingGear != null)
-            {
-                System.Diagnostics.Debug.WriteLine("Found a matching gear by name");
-            }
-            else
+            if (matchingGear == null)            
             {
                 matchingGear = await _Context.Gears.FirstOrDefaultAsync(e => e.BarCode == selectedGearId);
-                if (matchingGear != null)
-                {
-                    System.Diagnostics.Debug.WriteLine("Found a matching gear by scan");
-                }
             }
 
             if (matchingGear != null)
@@ -162,7 +156,7 @@ namespace LSMEmprunts
             if (ClosingBorrowings.Any(e => e.Borrowing.Gear == gear))
             {
                 var vm = new WarningWindowViewModel("Matériel déjà rendu");
-                await ShowWarningDialog.Handle(vm);
+                await Locator.Current.GetService<IDialogManager>().WarningWindow.Handle(vm);
                 SelectedGearId = string.Empty;
                 return;
             }
@@ -181,7 +175,7 @@ namespace LSMEmprunts
             else
             {
                 var msgVm = new WarningWindowViewModel("Matériel retourné sans avoir été emprunté");
-                await ShowWarningDialog.Handle(msgVm);
+                await Locator.Current.GetService<IDialogManager>().WarningWindow.Handle(msgVm);
                 
                 //create a "fake" borrowing with same Borrow / Return date
                 var borrowing = new Borrowing

@@ -48,7 +48,7 @@ namespace LSMEmprunts
         /// Helper for implementing INotifyDataErrorInfo.GetErrors in the _ValidatableObject
         /// </summary>
         /// <remarks>
-        /// TITem.GetErrors shall delegate its implementation to this method
+        /// TItem.GetErrors shall delegate its implementation to this method
         /// </remarks>
         public IEnumerable GetErrors(string propertyName)
         {

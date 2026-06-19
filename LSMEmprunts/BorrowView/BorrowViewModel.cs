@@ -131,6 +131,7 @@ namespace LSMEmprunts
             Users = CollectionViewSource.GetDefaultView(_UsersList);
             Users.Filter = (item) =>
             {
+                //filter users by name according to the text in the user selection text box
                 if (string.IsNullOrEmpty(_SelectedUserText))
                 {
                     return true;
@@ -150,6 +151,7 @@ namespace LSMEmprunts
             ((ListCollectionView)Gears).CustomSort = new GearComparer();
             Gears.Filter = (item) =>
             {
+                //filter out gears that are already in the BorrowedGears list, so that a user cannot borrow the same gear twice
                 var gearInfo = (GearBorrowInfo)item;
                 if (BorrowedGears.Any(e => e == gearInfo.Gear))
                 {
@@ -160,7 +162,9 @@ namespace LSMEmprunts
 
             this.WhenAnyValue(e => e.SelectedUserText).Subscribe(x => HandleSelectedUserTextChange(x));
 
-            this.WhenAnyValue(e=>e.SelectedGearId).Subscribe(async (x) => await AnalyzeSelectedGearIdAsync(x));
+            //note: we use InvokeCommand here instead of Subscribe because ReactiveCommand disables the command while it is executing,
+            //which avoids reentrancy issues if the user scans a gear while the previous scan is still being processed
+            this.WhenAnyValue(e=>e.SelectedGearId).InvokeCommand(AnalyzeSelectedGearIdCommand);
         }
 
         public void Dispose()
@@ -188,7 +192,6 @@ namespace LSMEmprunts
             Users.Refresh();
             if (Users.Cast<User>().Count() == 1)
             {
-                System.Diagnostics.Debug.WriteLine("User input - found matching user by name");
                 SetSelectedUser(Users.Cast<User>().First());
                 return;
             }
@@ -208,6 +211,7 @@ namespace LSMEmprunts
         /// Handle changes of the text in the selected gear text box. This text box is used to input either the name or the barcode of a gear,
         /// so that a user can quickly select a gear by scanning it or by typing its name.
         /// </summary>
+        [ReactiveCommand]
         private async Task AnalyzeSelectedGearIdAsync(string value)
         {
             if (string.IsNullOrEmpty(value))
@@ -217,18 +221,9 @@ namespace LSMEmprunts
 
             var valueLower = value.ToLower();
             var matchingGear = await _Context.Gears.FirstOrDefaultAsync(e => e.Name.ToLower() == valueLower);
-
-            if (matchingGear != null)
-            {
-                System.Diagnostics.Debug.WriteLine("Found matching gear by name");
-            }
-            else
+            if (matchingGear == null)
             {
                 matchingGear = await _Context.Gears.FirstOrDefaultAsync(e => e.BarCode == value);
-                if (matchingGear != null)
-                {
-                    System.Diagnostics.Debug.WriteLine("Found matching gear by scan");
-                }
             }
 
             if (matchingGear != null)
@@ -294,7 +289,7 @@ namespace LSMEmprunts
             if (BorrowedGears.Contains(gear))
             {
                 var vm = new WarningWindowViewModel("Matériel déjà emprunté");
-                //MainWindowViewModel.Instance.Dialogs.Add(vm);
+                await Locator.Current.GetService<IDialogManager>().WarningWindow.Handle(vm);
                 return;
             }
 

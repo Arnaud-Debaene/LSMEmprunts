@@ -42,6 +42,7 @@ namespace LSMEmprunts
 
                 isEditingObs.ObserveOn(RxSchedulers.MainThreadScheduler).Subscribe(isEditing =>
                 {
+                    //set visibility of the display and editor presenters based on the editing state
                     PART_DisplayPresenter.Visibility = isEditing ? Visibility.Collapsed : Visibility.Visible;
                     PART_EditorPresenter.Visibility = isEditing ? Visibility.Visible : Visibility.Collapsed;
 

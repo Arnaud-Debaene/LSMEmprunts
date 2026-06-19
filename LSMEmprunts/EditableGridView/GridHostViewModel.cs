@@ -13,10 +13,10 @@ namespace LSMEmprunts.EditableGridView
     /// <typeparam name="TItem">Type of the items displayed in the GridView</typeparam>
     public partial class GridHostViewModel<TItem> : ReactiveObject, ICellEditHost
     {
-        protected readonly ObservableCollection<TItem> _Items = new();
+        protected readonly ObservableCollection<TItem> _Items = [];
 
         /// <summary>
-        /// The Items that will be displayed in the GridView. This shall be boun to the ListView.ItemsSource property.
+        /// The Items that will be displayed in the GridView. This shall be bound to the ListView.ItemsSource property.
         /// </summary>
         public ReadOnlyObservableCollection<TItem> Items {get;}
 

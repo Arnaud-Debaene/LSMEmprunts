@@ -27,6 +27,10 @@ namespace LSMEmprunts
         /// </summary>
         public readonly WrappedType WrappedElt;
 
+        /// <summary>
+        /// helper that handles validation of the proxy properties through the FluentValidator,
+        /// and raises the ErrorsChanged event when validation errors change.
+        /// </summary>
         private readonly FluentErrorHelper<DerivedType> _ErrorHelper;
 
         /// <summary>
@@ -230,7 +234,7 @@ namespace LSMEmprunts
         /// <remarks>
         /// This implemntation is NOT thread-safe (static member, not protected), but since this is an MVVM proxy, it SHALL be used on GUI thread only.
         /// </remarks>
-        private static readonly Dictionary<LambdaExpression, PropertyInfo> _MemberToPropertyInfoDict = new();
+        private static readonly Dictionary<LambdaExpression, PropertyInfo> _MemberToPropertyInfoDict = [];
 
         /// <summary>
         /// Extracts the PropertyInfo from a lambda expression that selects a property.

@@ -26,8 +26,6 @@ namespace LSMEmprunts
                 this.Bind(ViewModel, x => x.SelectedGearId, x => x.SelectedGearIdTextBox.Text).DisposeWith(disposables);
                 this.Bind(ViewModel, x => x.AutoValidateTicker.RemainingTime, x => x.RemainingTimeTextBlock.Text).DisposeWith(disposables);
 
-                Locator.Current.GetService<IDialogManager>().RegisterInteraction(ViewModel.ShowWarningDialog);
-
                 SelectedGearIdTextBox.ConfigureRfidInput(disposables);
             });
         }
