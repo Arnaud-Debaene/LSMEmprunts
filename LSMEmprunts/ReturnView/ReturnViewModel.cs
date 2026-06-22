@@ -70,7 +70,8 @@ namespace LSMEmprunts
 
             //note: we use InvokeCommand here instead of Subscribe because ReactiveCommand disables the command while it is executing,
             //which avoids reentrancy issues if the user scans a gear while the previous scan is still being processed
-            this.WhenAnyValue(e => e.SelectedGearId).InvokeCommand(HandleSelectedGearIdChangeCommand);
+            this.WhenAnyValue(e => e.SelectedGearId).Throttle(TimeSpan.FromMilliseconds(300)).DistinctUntilChanged().Where(x => !string.IsNullOrWhiteSpace(x))
+                .ObserveOn(RxSchedulers.MainThreadScheduler).InvokeCommand(HandleSelectedGearIdChangeCommand);
 
             _Context = ContextFactory.OpenContext();
 
